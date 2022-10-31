@@ -5,8 +5,8 @@
  * dav_flags.h -- Interfaces exported by DAOS internal Allocator for VOS (DAV)
  */
 
-#ifndef LIBDAV_DAV_H
-#define LIBDAV_DAV_H 1
+#ifndef __DAOS_COMMON_DAV_H
+#define __DAOS_COMMON_DAV_H 1
 
 #include <setjmp.h>
 #include <stddef.h>
@@ -126,10 +126,15 @@ void
 dav_free(dav_obj_t *pop, uint64_t off);
 
 /*
- * DAV version of memcpy. Data copied is made persistent.
+ * DAV version of memcpy. Data copied is made persistent in blob.
  */
 void *dav_memcpy_persist(dav_obj_t *pop, void *dest, const void *src,
 			 size_t len);
+/*
+ * DAV version of memcpy with deferred commit to blob.
+ */
+void *dav_memcpy_persist_relaxed(dav_obj_t *pop, void *dest, const void *src,
+				 size_t len);
 
 /*
  * If called for the first time on a newly created dav heap, the root object
@@ -391,8 +396,6 @@ int dav_tx_publish(struct dav_action *actv, size_t actvcnt);
  * in the runtime state of the allocator, they can be normally freed, but
  * allocating equivalent objects will be done using the allocation class that
  * is currently defined for that size.
- *
- * Please see the libpmemobj man page for more information about entry points.
  */
 
 /*
@@ -420,7 +423,7 @@ enum dav_header_type {
 	 * Additionally, allocations with this header can only span a single
 	 * unit.
 	 * Objects allocated with this header do show up when iterating through
-	 * the heap using pmemobj_first/pmemobj_next functions, but have a
+	 * the heap using palloc_first/palloc_next functions, but have a
 	 * type_num equal 0.
 	 */
 	DAV_HEADER_NONE,
@@ -497,4 +500,11 @@ struct dav_heap_stats {
  */
 int dav_get_heap_stats(dav_obj_t *pop, struct dav_heap_stats *st);
 
-#endif /*LIBDAV_DAV_H*/
+struct umem_wal_tx;
+
+uint32_t wal_tx_act_nr(struct umem_wal_tx *tx);
+uint32_t wal_tx_payload_len(struct umem_wal_tx *tx);
+struct umem_action *wal_tx_act_first(struct umem_wal_tx *tx);
+struct umem_action *wal_tx_act_next(struct umem_wal_tx *tx);
+
+#endif /* __DAOS_COMMON_DAV_H */
