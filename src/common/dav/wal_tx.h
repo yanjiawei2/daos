@@ -29,9 +29,11 @@ struct dav_tx {
 _Static_assert(sizeof(struct dav_tx) <= UTX_PRIV_SIZE,
 	       "Size of struct dav_tx is too big!");
 
-#define dav_action_get_next(it) d_list_entry(&it.next, struct wal_action, wa_link)
+#define dav_action_get_next(it) d_list_entry(it.next, struct wal_action, wa_link)
 
-int dav_wal_tx_init(struct dav_obj *dav_hdl);
+struct umem_wal_tx *dav_umem_wtx_new(struct dav_obj *dav_hdl);
+void dav_umem_wtx_cleanup(struct umem_wal_tx *utx);
+int dav_wal_tx_reserve(struct dav_obj *hdl);
 int dav_wal_tx_commit(struct dav_obj *hdl);
 int dav_wal_tx_snap(void *hdl, void *addr, daos_size_t size, void *src, uint32_t flags);
 int dav_wal_tx_assign(void *hdl, void *addr, uint64_t val);

@@ -53,6 +53,7 @@
 #define DAV_XFREE_VALID_FLAGS	(DAV_XFREE_NO_ABORT)
 
 typedef struct dav_obj dav_obj_t;
+struct umem_store;
 
 /**
  * Create and initialize a DAV object and return its handle.
@@ -65,11 +66,13 @@ typedef struct dav_obj dav_obj_t;
  *
  * \param[in]	mode	permission to use while creating the file.
  *
+ * \param[in]	store	backing umem store.
+ *
  * \return		Returns the pointer to the object handle. Upon failure,
  *			it returns NULL with errno set appropriately.
  */
 dav_obj_t *
-dav_obj_create(const char *path, int flags, size_t sz, mode_t mode);
+dav_obj_create(const char *path, int flags, size_t sz, mode_t mode, struct umem_store *store);
 
 /**
  * Open and initialize a DAV object and return its handle.
@@ -78,11 +81,13 @@ dav_obj_create(const char *path, int flags, size_t sz, mode_t mode);
  *
  * \param[in]	flags	additional flags (Future).
  *
+ * \param[in]	store	backing umem store.
+ *
  * \return		Returns the pointer to the object handle. Upon failure,
  *			it returns NULL with errno set appropriately.
  */
 dav_obj_t *
-dav_obj_open(const char *path, int flags);
+dav_obj_open(const char *path, int flags, struct umem_store *store);
 
 /**
  * Close the DAV object

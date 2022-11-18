@@ -490,7 +490,7 @@ dav_tx_begin(dav_obj_t *pop, jmp_buf env, ...)
 			sizeof(struct tx_range_def));
 		tx->first_snapshot = 1;
 
-		err = store->stor_ops->so_wal_reserv(store, &pop->do_utx->utx_id);
+		err = store->stor_ops->so_wal_reserv(store, &pop->do_umem_wtx->utx_id);
 		if (err) {
 			D_ERROR("so_wal_reserv failed, "DF_RC"\n", DP_RC(err));
 			tx->stage = DAV_TX_STAGE_ONABORT;
@@ -753,12 +753,13 @@ dav_tx_end(void)
 		DAV_DBG("");
 		ASSERT(tx->pop);
 
+		tx->stage = DAV_TX_STAGE_NONE;
+
 		/* commit to WAL */
 		if (ret == 0)
 			dav_wal_tx_commit(tx->pop);
 
 		tx->pop = NULL;
-		tx->stage = DAV_TX_STAGE_NONE;
 		VEC_DELETE(&tx->actions);
 
 		if (tx->stage_callback) {
@@ -1586,6 +1587,8 @@ obj_alloc_root(dav_obj_t *pop, size_t size)
 
 	struct operation_context *ctx = pop->external;
 
+	dav_wal_tx_reserve(pop);
+
 	operation_start(ctx);
 
 	operation_add_entry(ctx, &pop->do_phdr->dp_root_size, size, ULOG_OPERATION_SET);
@@ -1690,6 +1693,8 @@ obj_alloc_construct(dav_obj_t *pop, uint64_t *offp, size_t size,
 
 	struct operation_context *ctx = pop->external;
 
+	dav_wal_tx_reserve(pop);
+
 	operation_start(ctx);
 
 	int ret = palloc_operation(pop->do_heap, 0, offp, size,
@@ -1751,6 +1756,8 @@ dav_free(dav_obj_t *pop, uint64_t off)
 	ASSERTne(pop, NULL);
 	ASSERT(OBJ_OFF_IS_VALID(pop, off));
 
+	dav_wal_tx_reserve(pop);
+
 	palloc_operation(pop->do_heap, off, &off, 0, NULL, NULL,
 			0, 0, 0, 0, ctx);
 
@@ -1770,6 +1777,8 @@ dav_memcpy_persist(dav_obj_t *pop, void *dest, const void *src,
 	D_ASSERT((dav_tx_stage() == DAV_TX_STAGE_NONE));
 
 	PMEMOBJ_API_START();
+
+	dav_wal_tx_reserve(pop);
 
 	void *ptr = mo_wal_memcpy(&pop->p_ops, dest, src, len, 0);
 

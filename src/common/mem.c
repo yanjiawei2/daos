@@ -115,7 +115,7 @@ umempobj_create(const char *path, const char *layout_name, int flags,
 		return umm_pool;
 	}
 
-	dav_hdl = dav_obj_create(path, 0, poolsize, mode);
+	dav_hdl = dav_obj_create(path, 0, poolsize, mode, store);
 	if (!dav_hdl) {
 		D_ERROR("Failed to create pool %s, size="DF_U64": errno = %d\n",
 			path, poolsize, errno);
@@ -183,7 +183,7 @@ umempobj_open(const char *path, const char *layout_name, int flags, struct umem_
 	/* TODO Load all meta pages from SSD */
 	/* TODO Replay WAL */
 
-	dav_hdl = dav_obj_open(path, 0);
+	dav_hdl = dav_obj_open(path, 0, store);
 	if (!dav_hdl) {
 		D_ERROR("Error in opening the pool %s: errno =%d\n",
 			path, errno);

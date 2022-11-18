@@ -80,11 +80,10 @@ persist_dav_phdr(dav_obj_t *hdl)
 }
 
 static dav_obj_t *
-dav_obj_open_internal(int fd, int flags, size_t sz, const char *path)
+dav_obj_open_internal(int fd, int flags, size_t sz, const char *path, struct umem_store *store)
 {
 	int rc;
 	dav_obj_t *hdl = NULL;
-	struct umem_wal_tx *utx = NULL;
 	void *base;
 	char *heap_base;
 	uint64_t heap_size;
@@ -111,16 +110,17 @@ dav_obj_open_internal(int fd, int flags, size_t sz, const char *path)
 	hdl->do_size = sz;
 	hdl->p_ops.base = hdl;
 
-	D_ALLOC_PTR(utx);
-	if (utx == NULL) {
-		err = ENOMEM;
-		D_FREE(hdl);
-		goto out1;
-	}
-	hdl->do_utx = utx;
-	hdl->do_store.stor_ops = &_store_ops;
+	hdl->do_store = *store;
+	if (hdl->do_store.stor_ops == NULL)
+		hdl->do_store.stor_ops = &_store_ops;
 	D_STRNDUP(hdl->do_path, path, strlen(path));
-	dav_wal_tx_init(hdl);
+	hdl->do_umem_wtx = dav_umem_wtx_new(hdl);
+	if (hdl->do_umem_wtx == NULL) {
+		err = ENOMEM;
+		goto out2;
+	}
+
+	dav_wal_tx_reserve(hdl);
 
 	if (flags & DAV_HEAP_INIT) {
 		setup_dav_phdr(hdl);
@@ -177,12 +177,13 @@ dav_obj_open_internal(int fd, int flags, size_t sz, const char *path)
 	return hdl;
 
 out2:
+	if (hdl->do_umem_wtx)
+		dav_umem_wtx_cleanup(hdl->do_umem_wtx);
 	if (hdl->do_stats)
 		stats_delete(hdl, hdl->do_stats);
 	if (hdl->do_heap)
 		D_FREE(hdl->do_heap);
 	D_FREE(hdl->do_path);
-	D_FREE(hdl->do_utx);
 	D_FREE(hdl);
 out1:
 	munmap(base, sz);
@@ -192,26 +193,17 @@ out1:
 }
 
 dav_obj_t *
-dav_obj_create(const char *path, int flags, size_t sz, mode_t mode)
+dav_obj_create(const char *path, int flags, size_t sz, mode_t mode, struct umem_store *store)
 {
 	int fd;
 	dav_obj_t *hdl;
-	struct stat statbuf;
 
 	SUPPRESS_UNUSED(flags);
 
 	if (sz == 0) {
-		/* Open the file and obtain the size */
-		fd = open(path, O_RDWR|O_CLOEXEC);
-		if (fd == -1)
-			return NULL;
-
-		if (fstat(fd, &statbuf) != 0) {
-			close(fd);
-			return NULL;
-		}
-		sz = statbuf.st_size;
-		/* REVISIT: May have to do additional validation */
+		D_ERROR("Invalid size %lu\n", sz);
+		errno = EINVAL;
+		return NULL;
 	} else {
 		fd = open(path, O_CREAT|O_EXCL|O_RDWR|O_CLOEXEC, mode);
 		if (fd == -1)
@@ -224,7 +216,7 @@ dav_obj_create(const char *path, int flags, size_t sz, mode_t mode)
 		}
 	}
 
-	hdl = dav_obj_open_internal(fd, DAV_HEAP_INIT, sz, path);
+	hdl = dav_obj_open_internal(fd, DAV_HEAP_INIT, sz, path, store);
 	if (hdl == NULL) {
 		close(fd);
 		return NULL;
@@ -234,7 +226,7 @@ dav_obj_create(const char *path, int flags, size_t sz, mode_t mode)
 }
 
 dav_obj_t *
-dav_obj_open(const char *path, int flags)
+dav_obj_open(const char *path, int flags, struct umem_store *store)
 {
 	int fd;
 	dav_obj_t *hdl;
@@ -251,7 +243,7 @@ dav_obj_open(const char *path, int flags)
 		return NULL;
 	}
 
-	hdl = dav_obj_open_internal(fd, 0, (size_t)statbuf.st_size, path);
+	hdl = dav_obj_open_internal(fd, 0, (size_t)statbuf.st_size, path, store);
 	if (hdl == NULL) {
 		close(fd);
 		return NULL;
@@ -277,7 +269,6 @@ dav_obj_close(dav_obj_t *hdl)
 	close(hdl->do_fd);
 	DAV_DBG("pool %s is closed", hdl->do_path);
 	D_FREE(hdl->do_path);
-	D_FREE(hdl->do_utx);
 	D_FREE(hdl);
 }
 

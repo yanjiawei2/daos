@@ -64,9 +64,8 @@ typedef struct dav_obj {
 	int				 do_fd;
 	int				 nested_tx;
 	struct bio_meta_instance	*do_mi;
-	struct umem_wal_tx		*do_utx;
+	struct umem_wal_tx		*do_umem_wtx;
 	struct umem_store		 do_store;
-
 	struct dav_clogs		 clogs __attribute__ ((__aligned__(CACHELINE_SIZE)));
 } dav_obj_t;
 
