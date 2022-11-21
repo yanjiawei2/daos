@@ -193,6 +193,13 @@ dav_wal_tx_submit(struct dav_obj *dav_hdl, struct umem_wal_tx *utx)
 				ua->ac_copy.addr / PAGESIZE, ua->ac_copy.addr % PAGESIZE,
 				ua->ac_copy.size);
 			break;
+		case UMEM_ACT_COPY_PTR:
+			D_DEBUG(DB_TRACE,
+				"%s: ACT_COPY_PTR     txid=%lu, (p,o)=%lu,%lu size=%lu\n %lu\n",
+				pathname, id,
+				ua->ac_copy_ptr.addr / PAGESIZE, ua->ac_copy_ptr.addr % PAGESIZE,
+				ua->ac_copy_ptr.size, ua->ac_copy_ptr.ptr);
+			break;
 		case UMEM_ACT_ASSIGN:
 			D_DEBUG(DB_TRACE,
 				"%s: ACT_ASSIGN   txid=%lu, (p,o)=%lu,%lu size=%u\n",
@@ -280,13 +287,21 @@ dav_wal_tx_snap(void *hdl, void *addr, daos_size_t size, void *src, uint32_t fla
 	if (addr == NULL || size == 0 || size > UMEM_ACT_PAYLOAD_MAX_LEN)
 		return -DER_INVAL;
 
-	D_ALLOC_ACT(wa_redo, UMEM_ACT_COPY, size);
-	if (wa_redo == NULL)
-		return -DER_NOMEM;
-
-	act_copy_payload(&wa_redo->wa_act, src, size);
-	wa_redo->wa_act.ac_copy.addr = mdblob_addr2offset(tx->wt_dav_hdl, addr);
-	wa_redo->wa_act.ac_copy.size = size;
+	if (flags & DAV_FLAG_RESERVE_COPY) {
+		D_ALLOC_ACT(wa_redo, UMEM_ACT_COPY_PTR, size);
+		if (wa_redo == NULL)
+			return -DER_NOMEM;
+		wa_redo->wa_act.ac_copy_ptr.ptr = (uintptr_t)src;
+		wa_redo->wa_act.ac_copy_ptr.addr = mdblob_addr2offset(tx->wt_dav_hdl, addr);
+		wa_redo->wa_act.ac_copy_ptr.size = size;
+	} else {
+		D_ALLOC_ACT(wa_redo, UMEM_ACT_COPY, size);
+		if (wa_redo == NULL)
+			return -DER_NOMEM;
+		act_copy_payload(&wa_redo->wa_act, src, size);
+		wa_redo->wa_act.ac_copy.addr = mdblob_addr2offset(tx->wt_dav_hdl, addr);
+		wa_redo->wa_act.ac_copy.size = size;
+	}
 	AD_TX_ACT_ADD(tx, wa_redo);
 	return 0;
 }

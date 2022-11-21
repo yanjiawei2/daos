@@ -263,7 +263,7 @@ tx_flush_range(void *data, void *ctx)
 
 	if (!(range->flags & DAV_FLAG_NO_FLUSH)) {
 		mo_wal_flush(&pop->p_ops, OBJ_OFF_TO_PTR(pop, range->offset),
-			     range->size);
+			     range->size, range->flags & DAV_FLAG_RESERVE_COPY);
 	}
 	VALGRIND_REMOVE_FROM_TX(OBJ_OFF_TO_PTR(pop, range->offset),
 				range->size);
@@ -1497,7 +1497,7 @@ dav_tx_publish(struct dav_action *actv, size_t actvcnt)
 		VEC_PUSH_BACK(&tx->actions, actv[i]);
 		if (palloc_action_isalloc(&actv[i])) {
 			palloc_get_prange(&actv[i], &off, &size, 1);
-			struct tx_range_def r = {off, size, DAV_XADD_NO_SNAPSHOT};
+			struct tx_range_def r = {off, size, DAV_XADD_NO_SNAPSHOT|DAV_XADD_USE_COPY_PTR};
 
 			ret = dav_tx_add_common(tx, &r);
 			D_ASSERT(ret == 0);

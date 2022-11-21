@@ -200,10 +200,24 @@ dav_obj_create(const char *path, int flags, size_t sz, mode_t mode, struct umem_
 
 	SUPPRESS_UNUSED(flags);
 
+	/*
+	 * REVISIT: Right now file in the given path is created ahead and then
+	 * vos_pool_create is called with sz == 0. This will change in future for BMEM.
+	 * When the above change happens, dav_obj_create() need not take sz as argument.
+	 * Instead the size is obtained from store->stor_size.
+	 */
 	if (sz == 0) {
-		D_ERROR("Invalid size %lu\n", sz);
-		errno = EINVAL;
-		return NULL;
+		struct stat statbuf;
+
+		fd = open(path, O_RDWR|O_CLOEXEC);
+		if (fd == -1)
+			return NULL;
+
+		if (fstat(fd, &statbuf) != 0) {
+			close(fd);
+			return NULL;
+		}
+		sz = statbuf.st_size;
 	} else {
 		fd = open(path, O_CREAT|O_EXCL|O_RDWR|O_CLOEXEC, mode);
 		if (fd == -1)
