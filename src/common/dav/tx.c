@@ -263,7 +263,7 @@ tx_flush_range(void *data, void *ctx)
 
 	if (!(range->flags & DAV_FLAG_NO_FLUSH)) {
 		mo_wal_flush(&pop->p_ops, OBJ_OFF_TO_PTR(pop, range->offset),
-			     range->size);
+			     range->size, range->flags & DAV_XADD_WAL_CPTR);
 	}
 	VALGRIND_REMOVE_FROM_TX(OBJ_OFF_TO_PTR(pop, range->offset),
 				range->size);
@@ -924,6 +924,14 @@ dav_tx_merge_flags(struct tx_range_def *dest, struct tx_range_def *merged)
 				!(merged->flags & DAV_XADD_NO_FLUSH)) {
 		dest->flags = dest->flags & (~DAV_XADD_NO_FLUSH);
 	}
+
+	/*
+	 * Extend DAV_XADD_WAL_CPTR when merged.
+	 */
+	if (merged->flags & DAV_XADD_WAL_CPTR) {
+		dest->flags = dest->flags | DAV_XADD_WAL_CPTR;
+	}
+
 }
 
 /*
@@ -1544,7 +1552,7 @@ dav_tx_publish(struct dav_action *actv, size_t actvcnt)
 		VEC_PUSH_BACK(&tx->actions, actv[i]);
 		if (palloc_action_isalloc(&actv[i])) {
 			palloc_get_prange(&actv[i], &off, &size, 1);
-			struct tx_range_def r = {off, size, DAV_XADD_NO_SNAPSHOT};
+			struct tx_range_def r = {off, size, DAV_XADD_NO_SNAPSHOT|DAV_XADD_WAL_CPTR};
 
 			ret = dav_tx_add_common(tx, &r);
 			D_ASSERT(ret == 0);

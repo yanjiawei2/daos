@@ -135,15 +135,13 @@ umempobj_create(const char *path, const char *layout_name, int flags,
 		umm_pool->up_priv = pop;
 		return umm_pool;
 	case DAOS_MD_BMEM:
-		dav_hdl = dav_obj_create(path, 0, poolsize, mode, store);
+		dav_hdl = dav_obj_create(path, 0, poolsize, mode, &umm_pool->up_store);
 		if (!dav_hdl) {
 			D_ERROR("Failed to create pool %s, size="DF_U64": errno = %d\n",
 				path, poolsize, errno);
 			D_FREE(umm_pool);
 			return NULL;
 		}
-		if (store != NULL)
-			umm_pool->up_store = *store;
 		umm_pool->up_priv = dav_hdl;
 
 		/* TODO: Do checkpoint here to write back allocator heap */
@@ -221,7 +219,7 @@ umempobj_open(const char *path, const char *layout_name, int flags, struct umem_
 		/* TODO Load all meta pages from SSD */
 		/* TODO Replay WAL */
 
-		dav_hdl = dav_obj_open(path, 0, store);
+		dav_hdl = dav_obj_open(path, 0, &umm_pool->up_store);
 		if (!dav_hdl) {
 			D_ERROR("Error in opening the pool %s: errno =%d\n",
 				path, errno);
