@@ -469,7 +469,7 @@ lw_tx_begin(dav_obj_t *pop)
 }
 
 int
-lw_tx_end(dav_obj_t *pop)
+lw_tx_end(dav_obj_t *pop, void *data)
 {
 	struct umem_wal_tx	*utx;
 	int			 rc;
@@ -478,7 +478,7 @@ lw_tx_end(dav_obj_t *pop)
 	D_ASSERT(utx != NULL);
 	pop->do_utx = NULL;
 
-	rc = dav_wal_tx_commit(pop, utx);
+	rc = dav_wal_tx_commit(pop, utx, data);
 	D_FREE(utx);
 	return rc;
 }
@@ -766,7 +766,7 @@ dav_tx_commit(void)
  * dav_tx_end -- ends current transaction
  */
 int
-dav_tx_end(void)
+dav_tx_end(void *data)
 {
 	struct tx *tx = get_tx();
 
@@ -802,7 +802,7 @@ dav_tx_end(void)
 		tx->stage = DAV_TX_STAGE_NONE;
 
 		/* commit to WAL */
-		rc = lw_tx_end(pop);
+		rc = lw_tx_end(pop, data);
 		/* TODO: Handle WAL commit errors */
 		D_ASSERT(rc == 0);
 		VEC_DELETE(&tx->actions);
@@ -1652,7 +1652,7 @@ obj_alloc_root(dav_obj_t *pop, size_t size)
 			constructor_zrealloc_root, &carg,
 			0, 0, 0, 0, ctx); /* REVISIT: object_flags and type num ignored*/
 
-	lw_tx_end(pop);
+	lw_tx_end(pop, NULL);
 	return ret;
 }
 
@@ -1753,7 +1753,7 @@ obj_alloc_construct(dav_obj_t *pop, uint64_t *offp, size_t size,
 			CLASS_ID_FROM_FLAG(flags), ARENA_ID_FROM_FLAG(flags),
 			ctx);
 
-	lw_tx_end(pop);
+	lw_tx_end(pop, NULL);
 	return ret;
 }
 
@@ -1809,7 +1809,7 @@ dav_free(dav_obj_t *pop, uint64_t off)
 	palloc_operation(pop->do_heap, off, &off, 0, NULL, NULL,
 			0, 0, 0, 0, ctx);
 
-	lw_tx_end(pop);
+	lw_tx_end(pop, NULL);
 	PMEMOBJ_API_END();
 }
 
@@ -1828,7 +1828,7 @@ dav_memcpy_persist(dav_obj_t *pop, void *dest, const void *src,
 
 	void *ptr = mo_wal_memcpy(&pop->p_ops, dest, src, len, 0);
 
-	lw_tx_end(pop);
+	lw_tx_end(pop, NULL);
 	PMEMOBJ_API_END();
 	return ptr;
 }

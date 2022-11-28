@@ -177,7 +177,7 @@ dav_obj_open_internal(int fd, int flags, size_t sz, const char *path, struct ume
 	if (persist_hdr)
 		persist_dav_phdr(hdl);
 
-	lw_tx_end(hdl);
+	lw_tx_end(hdl, NULL);
 	return hdl;
 
 out2:
@@ -281,7 +281,7 @@ dav_obj_close(dav_obj_t *hdl)
 
 	lw_tx_begin(hdl);
 	stats_delete(hdl, hdl->do_stats);
-	lw_tx_end(hdl);
+	lw_tx_end(hdl, NULL);
 
 	munmap(hdl->do_base, hdl->do_size);
 	close(hdl->do_fd);

@@ -80,6 +80,6 @@ struct umem_wal_tx *wtx2utx(struct dav_tx *wtx)
 }
 
 int lw_tx_begin(dav_obj_t *pop);
-int lw_tx_end(dav_obj_t *pop);
+int lw_tx_end(dav_obj_t *pop, void *data);
 
 #endif /* __DAOS_COMMON_DAV_INTERNAL_H */

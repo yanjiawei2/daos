@@ -98,7 +98,7 @@ dav_umem_wtx_cleanup(struct umem_wal_tx *utx)
 }
 
 static int
-dav_wal_tx_submit(struct dav_obj *dav_hdl, struct umem_wal_tx *utx)
+dav_wal_tx_submit(struct dav_obj *dav_hdl, struct umem_wal_tx *utx, void *data)
 {
 	struct wal_action	*wa, *next;
 	struct umem_action	*ua;
@@ -165,18 +165,18 @@ dav_wal_tx_submit(struct dav_obj *dav_hdl, struct umem_wal_tx *utx)
 	}
 	DAV_DBG("tx_id:%lu submitting to WAL: %u bytes in %u actions",
 		id, tx->wt_redo_payload_len, tx->wt_redo_cnt);
-	rc = store->stor_ops->so_wal_submit(store, utx, NULL);
+	rc = store->stor_ops->so_wal_submit(store, utx, data);
 	return rc;
 }
 
 /** complete the wl transaction */
 int
-dav_wal_tx_commit(struct dav_obj *hdl, struct umem_wal_tx *utx)
+dav_wal_tx_commit(struct dav_obj *hdl, struct umem_wal_tx *utx, void *data)
 {
 	int rc;
 
 	/* write actions in redo list to WAL */
-	rc = dav_wal_tx_submit(hdl, utx);
+	rc = dav_wal_tx_submit(hdl, utx, data);
 	/* FAIL the engine if commit fails */
 	D_ASSERT(rc == 0);
 	dav_umem_wtx_cleanup(utx);

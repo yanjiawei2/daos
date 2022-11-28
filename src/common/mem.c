@@ -982,7 +982,7 @@ bmem_tx_abort(struct umem_instance *umm, int err)
 	if (dav_tx_stage() != DAV_TX_STAGE_ONABORT)
 		dav_tx_abort(err);
 
-	err = dav_tx_end();
+	err = dav_tx_end(NULL);
 	return err ? umem_tx_errno(err) : 0;
 }
 
@@ -1005,7 +1005,7 @@ bmem_tx_begin(struct umem_instance *umm, struct umem_tx_stage_data *txd)
 		 * dav_tx_end() needs be called to re-initialize the
 		 * tx state when dav_tx_begin() failed.
 		 */
-		rc = dav_tx_end();
+		rc = dav_tx_end(NULL);
 		return rc ? umem_tx_errno(rc) : 0;
 	}
 	return 0;
@@ -1017,7 +1017,7 @@ bmem_tx_commit(struct umem_instance *umm, void *data)
 	int rc;
 
 	dav_tx_commit();
-	rc = dav_tx_end();
+	rc = dav_tx_end(data);
 
 	return rc ? umem_tx_errno(rc) : 0;
 }
