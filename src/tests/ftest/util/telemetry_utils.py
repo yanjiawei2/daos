@@ -511,6 +511,12 @@ class TelemetryUtils():
         ENGINE_NVME_RELIABILITY_METRICS +\
         ENGINE_NVME_CRIT_WARN_METRICS +\
         ENGINE_NVME_INTEL_VENDOR_METRICS
+    ENGINE_MEM_USAGE_METRICS = [
+        "engine_mem_vos_dtx_cmt_ent_48",
+        "engine_mem_vos_vos_obj_360",
+        "engine_mem_vos_vos_lru_size",
+        "engine_mem_dtx_dtx_leader_handle_336",
+        "engine_mem_dtx_dtx_entry_40"]
 
     def __init__(self, dmg, servers):
         """Create a TelemetryUtils object.
@@ -541,6 +547,7 @@ class TelemetryUtils():
         all_metrics_names.extend(self.ENGINE_NET_METRICS)
         all_metrics_names.extend(self.ENGINE_RANK_METRICS)
         all_metrics_names.extend(self.ENGINE_DMABUFF_METRICS)
+        all_metrics_names.extend(self.ENGINE_MEM_USAGE_METRICS)
         if with_pools:
             all_metrics_names.extend(self.ENGINE_POOL_METRICS)
             all_metrics_names.extend(self.ENGINE_CONTAINER_METRICS)

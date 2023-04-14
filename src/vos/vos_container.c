@@ -391,7 +391,7 @@ vos_cont_open(daos_handle_t poh, uuid_t co_uuid, daos_handle_t *coh)
 
 	rc = lrua_array_alloc(&cont->vc_dtx_array, DTX_ARRAY_LEN, DTX_ARRAY_NR,
 			      sizeof(struct vos_dtx_act_ent),
-			      LRU_FLAG_REUSE_UNIQUE,
+			      LRU_FLAG_REUSE_UNIQUE | LRU_FLAG_TRACK_ALLOC,
 			      NULL, NULL);
 	if (rc != 0) {
 		D_ERROR("Failed to create DTX active array: rc = "DF_RC"\n",

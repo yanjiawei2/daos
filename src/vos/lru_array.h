@@ -65,6 +65,10 @@ enum {
 	 *  reuse of entries
 	 */
 	LRU_FLAG_REUSE_UNIQUE		= 2,
+	/**
+	 * LRU entry TRACK ALLOCATION
+	 */
+	LRU_FLAG_TRACK_ALLOC		= 4,
 };
 
 struct lru_array {

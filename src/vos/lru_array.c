@@ -11,6 +11,7 @@
  */
 #define D_LOGFAC DD_FAC(vos)
 #include "lru_array.h"
+#include "vos_internal.h"
 
 /** Internal converter for real index to entity index in sub array */
 #define ent2idx(array, sub, ent_idx)	\
@@ -77,6 +78,12 @@ lrua_array_alloc_one(struct lru_array *array, struct lru_sub *sub)
 	D_ALLOC(sub->ls_table, rec_size * nr_ents);
 	if (sub->ls_table == NULL)
 		return -DER_NOMEM;
+
+	if (array->la_flags & LRU_FLAG_TRACK_ALLOC) {
+		struct vos_tls	*tls = vos_tls_get();
+
+		d_tm_inc_counter(tls->vtl_lru_alloc_size, rec_size * nr_ents);
+	}
 
 	/** Add newly allocated ones to head of list */
 	d_list_del(&sub->ls_link);
@@ -235,6 +242,7 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 		 uint16_t payload_size, uint32_t flags,
 		 const struct lru_callbacks *cbs, void *arg)
 {
+	struct vos_tls		*tls = NULL;
 	struct lru_array	*array;
 	uint32_t		 aligned_size;
 	uint32_t		 idx;
@@ -271,6 +279,12 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 	if (array == NULL)
 		return -DER_NOMEM;
 
+	if (flags & LRU_FLAG_TRACK_ALLOC) {
+		tls = vos_tls_get();
+		d_tm_inc_counter(tls->vtl_lru_alloc_size,
+				 sizeof(*array) +
+				 (sizeof(array->la_sub[0]) * nr_arrays));
+	}
 	array->la_count = nr_ent;
 	array->la_idx_mask = (nr_ent / nr_arrays) - 1;
 	array->la_array_nr = nr_arrays;
@@ -295,6 +309,10 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 	rc = lrua_array_alloc_one(array, &array->la_sub[0]);
 	if (rc != 0) {
 		D_FREE(array);
+		if (tls != NULL)
+			d_tm_dec_counter(tls->vtl_lru_alloc_size,
+					 sizeof(*array) +
+					 (sizeof(array->la_sub[0]) * nr_arrays));
 		return rc;
 	}
 
@@ -312,6 +330,15 @@ array_free_one(struct lru_array *array, struct lru_sub *sub)
 		fini_cb(array, sub, &sub->ls_table[idx], idx);
 
 	D_FREE(sub->ls_table);
+
+	if (array->la_flags & LRU_FLAG_TRACK_ALLOC) {
+		struct vos_tls	*tls = vos_tls_get();
+
+		d_tm_dec_counter(tls->vtl_lru_alloc_size,
+				 (sizeof(struct lru_entry) +
+				  array->la_payload_size) *
+				 (array->la_idx_mask + 1));
+	}
 }
 
 void
@@ -323,11 +350,18 @@ lrua_array_free(struct lru_array *array)
 	if (array == NULL)
 		return;
 
-
 	for (i = 0; i < array->la_array_nr; i++) {
 		sub = &array->la_sub[i];
 		if (sub->ls_table != NULL)
 			array_free_one(array, sub);
+	}
+
+	if (array->la_flags & LRU_FLAG_TRACK_ALLOC) {
+		struct vos_tls	*tls = vos_tls_get();
+
+		d_tm_inc_counter(tls->vtl_lru_alloc_size,
+				 sizeof(*array) +
+				 (sizeof(array->la_sub[0]) * array->la_array_nr));
 	}
 
 	D_FREE(array);
