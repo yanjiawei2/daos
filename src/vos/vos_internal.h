@@ -1657,4 +1657,6 @@ vos_anchor_is_zero(daos_anchor_t *anchor)
 	return anchor == NULL || daos_anchor_is_zero(anchor);
 }
 
+void vos_lru_free_track(void *arg, daos_size_t size);
+void vos_lru_alloc_track(void *arg, daos_size_t size);
 #endif /* __VOS_INTERNAL_H__ */

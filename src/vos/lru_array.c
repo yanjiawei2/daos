@@ -1,5 +1,5 @@
 /**
- * (C) Copyright 2020-2021 Intel Corporation.
+ * (C) Copyright 2020-2023 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -64,6 +64,24 @@ fini_cb(struct lru_array *array, struct lru_sub *sub, struct lru_entry *entry,
 	array->la_cbs.lru_on_fini(entry->le_payload, real_idx, array->la_arg);
 }
 
+static void
+alloc_cb(struct lru_array *array, daos_size_t size)
+{
+	if (array->la_cbs.lru_on_alloc == NULL)
+		return;
+
+	array->la_cbs.lru_on_alloc(array->la_arg, size);
+}
+
+static void
+free_cb(struct lru_array *array, daos_size_t size)
+{
+	if (array->la_cbs.lru_on_free == NULL)
+		return;
+
+	array->la_cbs.lru_on_free(array->la_arg, size);
+}
+
 int
 lrua_array_alloc_one(struct lru_array *array, struct lru_sub *sub)
 {
@@ -79,11 +97,7 @@ lrua_array_alloc_one(struct lru_array *array, struct lru_sub *sub)
 	if (sub->ls_table == NULL)
 		return -DER_NOMEM;
 
-	if (array->la_flags & LRU_FLAG_TRACK_ALLOC) {
-		struct vos_tls	*tls = vos_tls_get();
-
-		d_tm_inc_counter(tls->vtl_lru_alloc_size, rec_size * nr_ents);
-	}
+	alloc_cb(array, rec_size * nr_ents);
 
 	/** Add newly allocated ones to head of list */
 	d_list_del(&sub->ls_link);
@@ -242,7 +256,6 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 		 uint16_t payload_size, uint32_t flags,
 		 const struct lru_callbacks *cbs, void *arg)
 {
-	struct vos_tls		*tls = NULL;
 	struct lru_array	*array;
 	uint32_t		 aligned_size;
 	uint32_t		 idx;
@@ -279,12 +292,7 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 	if (array == NULL)
 		return -DER_NOMEM;
 
-	if (flags & LRU_FLAG_TRACK_ALLOC) {
-		tls = vos_tls_get();
-		d_tm_inc_counter(tls->vtl_lru_alloc_size,
-				 sizeof(*array) +
-				 (sizeof(array->la_sub[0]) * nr_arrays));
-	}
+
 	array->la_count = nr_ent;
 	array->la_idx_mask = (nr_ent / nr_arrays) - 1;
 	array->la_array_nr = nr_arrays;
@@ -297,6 +305,7 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 	if (cbs != NULL)
 		array->la_cbs = *cbs;
 
+	alloc_cb(array, sizeof(*array) + sizeof(array->la_sub[0]) * nr_arrays);
 	/** Only allocate one sub array, add the rest to free list */
 	D_INIT_LIST_HEAD(&array->la_free_sub);
 	D_INIT_LIST_HEAD(&array->la_unused_sub);
@@ -308,11 +317,9 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 
 	rc = lrua_array_alloc_one(array, &array->la_sub[0]);
 	if (rc != 0) {
+		free_cb(array, sizeof(*array) +
+		        sizeof(array->la_sub[0]) * nr_arrays);
 		D_FREE(array);
-		if (tls != NULL)
-			d_tm_dec_counter(tls->vtl_lru_alloc_size,
-					 sizeof(*array) +
-					 (sizeof(array->la_sub[0]) * nr_arrays));
 		return rc;
 	}
 
@@ -331,14 +338,9 @@ array_free_one(struct lru_array *array, struct lru_sub *sub)
 
 	D_FREE(sub->ls_table);
 
-	if (array->la_flags & LRU_FLAG_TRACK_ALLOC) {
-		struct vos_tls	*tls = vos_tls_get();
-
-		d_tm_dec_counter(tls->vtl_lru_alloc_size,
-				 (sizeof(struct lru_entry) +
-				  array->la_payload_size) *
-				 (array->la_idx_mask + 1));
-	}
+	free_cb(array,
+		(sizeof(struct lru_entry) + array->la_payload_size) *
+		(array->la_idx_mask + 1));
 }
 
 void
@@ -356,13 +358,7 @@ lrua_array_free(struct lru_array *array)
 			array_free_one(array, sub);
 	}
 
-	if (array->la_flags & LRU_FLAG_TRACK_ALLOC) {
-		struct vos_tls	*tls = vos_tls_get();
-
-		d_tm_inc_counter(tls->vtl_lru_alloc_size,
-				 sizeof(*array) +
-				 (sizeof(array->la_sub[0]) * array->la_array_nr));
-	}
+	alloc_cb(array, sizeof(*array) + sizeof(array->la_sub[0]) * array->la_array_nr);
 
 	D_FREE(array);
 }

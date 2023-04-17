@@ -1700,7 +1700,7 @@ d_tm_set_counter(struct d_tm_node_t *metric, uint64_t value)
 }
 
 /**
- * Increment the given counter by the specified \a value
+ * Decrement the given counter by the specified \a value
  *
  * \param[in]	metric	Pointer to the metric
  * \param[in]	value	Increments the counter by this \a value

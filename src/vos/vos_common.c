@@ -418,8 +418,30 @@ vos_tls_fini(void *data)
 
 	umem_fini_txd(&tls->vtl_txd);
 	if (tls->vtl_ts_table)
-		vos_ts_table_free(&tls->vtl_ts_table);
+		vos_ts_table_free(&tls->vtl_ts_table, tls);
 	D_FREE(tls);
+}
+
+void
+vos_lru_alloc_track(void *arg, daos_size_t size)
+{
+	struct vos_tls *tls = arg;
+
+	if (tls == NULL || tls->vtl_lru_alloc_size == NULL)
+		return;
+
+	d_tm_inc_counter(tls->vtl_lru_alloc_size, size);
+}
+
+void
+vos_lru_free_track(void *arg, daos_size_t size)
+{
+	struct vos_tls *tls = arg;
+
+	if (tls == NULL || tls->vtl_lru_alloc_size == NULL)
+		return;
+
+	d_tm_dec_counter(tls->vtl_lru_alloc_size, size);
 }
 
 static void *
@@ -461,12 +483,6 @@ vos_tls_init(int xs_id, int tgt_id)
 		goto failed;
 	}
 
-	rc = vos_ts_table_alloc(&tls->vtl_ts_table);
-	if (rc) {
-		D_ERROR("Error in creating timestamp table: %d\n", rc);
-		goto failed;
-	}
-
 	if (tgt_id < 0)
 		/** skip sensor setup on standalone vos & sys xstream */
 		return tls;
@@ -495,11 +511,16 @@ vos_tls_init(int xs_id, int tgt_id)
 		D_WARN("Failed to create vos obj cnt: "DF_RC"\n", DP_RC(rc));
 
 	rc = d_tm_add_metric(&tls->vtl_lru_alloc_size, D_TM_COUNTER,
-			     "Number of LRU cache size", "byte",
+			     "Active DTX table LRU size", "byte",
 			     "mem/vos/vos_lru_size/tgt_%u", tgt_id);
 	if (rc)
 		D_WARN("Failed to create LRU alloc size: "DF_RC"\n", DP_RC(rc));
 
+	rc = vos_ts_table_alloc(&tls->vtl_ts_table, rc == 0 ? tls : NULL);
+	if (rc) {
+		D_ERROR("Error in creating timestamp table: %d\n", rc);
+		goto failed;
+	}
 
 	return tls;
 failed:

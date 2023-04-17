@@ -3094,6 +3094,11 @@ vos_dtx_rsrvd_fini(struct dtx_handle *dth)
 	}
 }
 
+static const struct lru_callbacks lru_dtx_cache_cbs = {
+	.lru_on_alloc = vos_lru_alloc_track,
+	.lru_on_free = vos_lru_free_track,
+};
+
 int
 vos_dtx_cache_reset(daos_handle_t coh, bool force)
 {
@@ -3128,7 +3133,8 @@ vos_dtx_cache_reset(daos_handle_t coh, bool force)
 		lrua_array_free(cont->vc_dtx_array);
 
 	rc = lrua_array_alloc(&cont->vc_dtx_array, DTX_ARRAY_LEN, DTX_ARRAY_NR,
-			      sizeof(struct vos_dtx_act_ent), LRU_FLAG_REUSE_UNIQUE, NULL, NULL);
+			      sizeof(struct vos_dtx_act_ent), LRU_FLAG_REUSE_UNIQUE,
+			      &lru_dtx_cache_cbs, vos_tls_get());
 	if (rc != 0) {
 		D_ERROR("Failed to re-create DTX active array for "DF_UUID": "DF_RC"\n",
 			DP_UUID(cont->vc_id), DP_RC(rc));
