@@ -483,36 +483,35 @@ vos_tls_init(int xs_id, int tgt_id)
 		goto failed;
 	}
 
-	if (tgt_id < 0)
-		/** skip sensor setup on standalone vos & sys xstream */
-		return tls;
+	if (tgt_id >= 0) {
+		rc = d_tm_add_metric(&tls->vtl_committed, D_TM_STATS_GAUGE,
+				     "Number of committed entries kept around for reply"
+				     " reconstruction", "entries",
+				     "io/dtx/committed/tgt_%u", tgt_id);
+		if (rc)
+			D_WARN("Failed to create committed cnt sensor: "DF_RC"\n",
+			       DP_RC(rc));
 
-	rc = d_tm_add_metric(&tls->vtl_committed, D_TM_STATS_GAUGE,
-			     "Number of committed entries kept around for reply"
-			     " reconstruction", "entries",
-			     "io/dtx/committed/tgt_%u", tgt_id);
-	if (rc)
-		D_WARN("Failed to create committed cnt sensor: "DF_RC"\n",
-		       DP_RC(rc));
+		rc = d_tm_add_metric(&tls->vtl_dtx_cmt_ent_cnt, D_TM_COUNTER,
+				     "Number of committed entries", "entry",
+				     "mem/vos/dtx_cmt_ent_%u/tgt_%u",
+				     sizeof(struct vos_dtx_cmt_ent), tgt_id);
+		if (rc)
+			D_WARN("Failed to create committed cnt: "DF_RC"\n",
+			       DP_RC(rc));
 
-	rc = d_tm_add_metric(&tls->vtl_dtx_cmt_ent_cnt, D_TM_COUNTER,
-			     "Number of committed entries", "entry",
-			     "mem/vos/dtx_cmt_ent_%u/tgt_%u",
-			     sizeof(struct vos_dtx_cmt_ent), tgt_id);
-	if (rc)
-		D_WARN("Failed to create committed cnt: "DF_RC"\n",
-		       DP_RC(rc));
+		rc = d_tm_add_metric(&tls->vtl_obj_cnt, D_TM_COUNTER,
+				     "Number of cached vos object", "entry",
+				     "mem/vos/vos_obj_%u/tgt_%u",
+				     sizeof(struct vos_object), tgt_id);
+		if (rc)
+			D_WARN("Failed to create vos obj cnt: "DF_RC"\n", DP_RC(rc));
 
-	rc = d_tm_add_metric(&tls->vtl_obj_cnt, D_TM_COUNTER,
-			     "Number of cached vos object", "entry",
-			     "mem/vos/vos_obj_%u/tgt_%u",
-			     sizeof(struct vos_object), tgt_id);
-	if (rc)
-		D_WARN("Failed to create vos obj cnt: "DF_RC"\n", DP_RC(rc));
+	}
 
 	rc = d_tm_add_metric(&tls->vtl_lru_alloc_size, D_TM_COUNTER,
 			     "Active DTX table LRU size", "byte",
-			     "mem/vos/vos_lru_size/tgt_%u", tgt_id);
+			     "mem/vos/vos_lru_size/tgt_%d", tgt_id);
 	if (rc)
 		D_WARN("Failed to create LRU alloc size: "DF_RC"\n", DP_RC(rc));
 
