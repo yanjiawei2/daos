@@ -1,5 +1,5 @@
 /**
- * (C) Copyright 2020-2022 Intel Corporation.
+ * (C) Copyright 2020-2023 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -216,8 +216,8 @@ cleanup:
 		lrua_array_free(ts_table->tt_type_info[i].ti_array);
 	if (tls != NULL)
 		d_tm_dec_counter(tls->vtl_lru_alloc_size,
-				sizeof(*ts_table->tt_misses) *
-				(OBJ_MISS_SIZE + DKEY_MISS_SIZE + AKEY_MISS_SIZE));
+				 sizeof(*ts_table->tt_misses) *
+				 (OBJ_MISS_SIZE + DKEY_MISS_SIZE + AKEY_MISS_SIZE));
 	D_FREE(ts_table->tt_misses);
 free_table:
 	D_FREE(ts_table);
@@ -236,8 +236,8 @@ vos_ts_table_free(struct vos_ts_table **ts_tablep, struct vos_tls *tls)
 
 	if (tls != NULL)
 		d_tm_dec_counter(tls->vtl_lru_alloc_size,
-				sizeof(*ts_table->tt_misses) *
-				(OBJ_MISS_SIZE + DKEY_MISS_SIZE + AKEY_MISS_SIZE));
+				 sizeof(*ts_table->tt_misses) *
+				 (OBJ_MISS_SIZE + DKEY_MISS_SIZE + AKEY_MISS_SIZE));
 	D_FREE(ts_table->tt_misses);
 	D_FREE(ts_table);
 

@@ -292,7 +292,6 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 	if (array == NULL)
 		return -DER_NOMEM;
 
-
 	array->la_count = nr_ent;
 	array->la_idx_mask = (nr_ent / nr_arrays) - 1;
 	array->la_array_nr = nr_arrays;
@@ -317,8 +316,7 @@ lrua_array_alloc(struct lru_array **arrayp, uint32_t nr_ent, uint32_t nr_arrays,
 
 	rc = lrua_array_alloc_one(array, &array->la_sub[0]);
 	if (rc != 0) {
-		free_cb(array, sizeof(*array) +
-		        sizeof(array->la_sub[0]) * nr_arrays);
+		free_cb(array, sizeof(*array) + sizeof(array->la_sub[0]) * nr_arrays);
 		D_FREE(array);
 		return rc;
 	}
