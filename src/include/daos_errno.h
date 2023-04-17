@@ -291,7 +291,7 @@ extern "C" {
 	ACTION(DER_BAD_CERT,		(DER_ERR_DAOS_BASE + 44),	\
 	       Invalid x509 certificate)				\
 	ACTION(DER_VOS_PARTIAL_UPDATE,	(DER_ERR_DAOS_BASE + 45),	\
-	       VOS partial update error)
+	       Same epoch partial overwrite of VOS array value disallowed)
 
 /** Defines the gurt error codes */
 #define D_FOREACH_ERR_RANGE(ACTION)	\
