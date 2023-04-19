@@ -356,7 +356,7 @@ lrua_array_free(struct lru_array *array)
 			array_free_one(array, sub);
 	}
 
-	alloc_cb(array, sizeof(*array) + sizeof(array->la_sub[0]) * array->la_array_nr);
+	free_cb(array, sizeof(*array) + sizeof(array->la_sub[0]) * array->la_array_nr);
 
 	D_FREE(array);
 }

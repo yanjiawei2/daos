@@ -1718,6 +1718,11 @@ d_tm_dec_counter(struct d_tm_node_t *metric, uint64_t value)
 	}
 
 	d_tm_node_lock(metric);
+	if (unlikely(metric->dtn_metric->dtm_data.value < value))
+		D_WARN("counter [%s] current "DF_U64" < "DF_U64"\n",
+		       metric->dtn_name, metric->dtn_metric->dtm_data.value,
+		       value);
+
 	metric->dtn_metric->dtm_data.value -= value;
 	d_tm_node_unlock(metric);
 }
