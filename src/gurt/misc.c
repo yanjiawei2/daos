@@ -11,11 +11,29 @@
 
 #include <stdarg.h>
 #include <math.h>
+#include <malloc.h>
 #include <string.h>
 #include <gurt/common.h>
 
 /* state buffer for DAOS rand and srand calls, NOT thread safe */
 static struct drand48_data randBuffer = {0};
+
+d_alloc_track_cb_t d_alloc_track_cb;
+d_alloc_track_cb_t d_free_track_cb;
+static __thread void *track_arg;
+
+void
+d_set_alloc_track_cb(d_alloc_track_cb_t alloc_cb, d_alloc_track_cb_t free_cb)
+{
+	d_alloc_track_cb = alloc_cb;
+	d_free_track_cb = free_cb;
+}
+
+void
+d_set_alloc_track_arg(void *arg)
+{
+	track_arg = arg;
+}
 
 void
 d_srand(long int seedval)
@@ -35,31 +53,61 @@ d_rand()
 void
 d_free(void *ptr)
 {
+	size_t size = malloc_usable_size(ptr);
+
+	if (d_free_track_cb != NULL && track_arg != NULL)
+		d_free_track_cb(track_arg, size);
+
 	free(ptr);
 }
 
 void *
 d_calloc(size_t count, size_t eltsize)
 {
-	return calloc(count, eltsize);
+	void *ptr;
+
+	ptr = calloc(count, eltsize);
+	if (ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, eltsize);
+
+	return ptr;
 }
 
 void *
 d_malloc(size_t size)
 {
-	return malloc(size);
+	void *ptr;
+
+	ptr = malloc(size);
+	if (ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, size);
+
+	return ptr;
 }
 
 void *
 d_realloc(void *ptr, size_t size)
 {
-	return realloc(ptr, size);
+	void *new_ptr;
+	size_t old_size = malloc_usable_size(ptr);
+
+	new_ptr = realloc(ptr, size);
+	if (new_ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, size - old_size);
+
+	return new_ptr;
 }
 
 char *
 d_strndup(const char *s, size_t n)
 {
-	return strndup(s, n);
+	char *ptr;
+
+	ptr = strndup(s, n);
+	if (ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, n);
+
+	return ptr;
 }
 
 int
@@ -71,6 +119,8 @@ d_asprintf(char **strp, const char *fmt, ...)
 	va_start(ap, fmt);
 	rc = vasprintf(strp, fmt, ap);
 	va_end(ap);
+	if (rc > 0 && *strp != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, (size_t)rc);
 
 	return rc;
 }
@@ -78,13 +128,24 @@ d_asprintf(char **strp, const char *fmt, ...)
 char *
 d_realpath(const char *path, char *resolved_path)
 {
-	return realpath(path, resolved_path);
+	char *ptr;
+
+	ptr = realpath(path, resolved_path);
+	if (ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, malloc_usable_size(ptr));
+
+	return ptr;
 }
 
 void *
 d_aligned_alloc(size_t alignment, size_t size)
 {
-	return aligned_alloc(alignment, size);
+	void *ptr;
+
+	ptr = aligned_alloc(alignment, size);
+	if (ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
+		d_alloc_track_cb(track_arg, size);
+	return ptr;
 }
 
 int
