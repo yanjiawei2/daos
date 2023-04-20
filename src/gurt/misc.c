@@ -68,7 +68,7 @@ d_calloc(size_t count, size_t eltsize)
 
 	ptr = calloc(count, eltsize);
 	if (ptr != NULL && d_alloc_track_cb != NULL && track_arg != NULL)
-		d_alloc_track_cb(track_arg, eltsize);
+		d_alloc_track_cb(track_arg, eltsize * count);
 
 	return ptr;
 }
