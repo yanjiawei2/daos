@@ -71,7 +71,7 @@ CRT_RPC_DECLARE(dtx, DAOS_ISEQ_DTX, DAOS_OSEQ_DTX);
 
 /* The count threshold (per pool) for triggering DTX aggregation. */
 #define DTX_AGG_THD_CNT_MAX	(1 << 24)
-#define DTX_AGG_THD_CNT_MIN	(1 << 20)
+#define DTX_AGG_THD_CNT_MIN     (1 << 19)
 #define DTX_AGG_THD_CNT_DEF	((1 << 19) * 7)
 
 /* If the total committed DTX entries count for the pool exceeds

@@ -127,11 +127,11 @@ struct vos_ts_set {
 };
 
 /** Timestamp types (should all be powers of 2) */
-#define D_FOREACH_TS_TYPE(ACTION)					\
-	ACTION(VOS_TS_TYPE_CONT,	"container",	1024)		\
-	ACTION(VOS_TS_TYPE_OBJ,		"object",	32 * 1024)	\
-	ACTION(VOS_TS_TYPE_DKEY,	"dkey",		128 * 1024)	\
-	ACTION(VOS_TS_TYPE_AKEY,	"akey",		512 * 1024)
+#define D_FOREACH_TS_TYPE(ACTION)                                                                  \
+	ACTION(VOS_TS_TYPE_CONT, "container", 512)                                                 \
+	ACTION(VOS_TS_TYPE_OBJ, "object", 16 * 1024)                                               \
+	ACTION(VOS_TS_TYPE_DKEY, "dkey", 64 * 1024)                                                \
+	ACTION(VOS_TS_TYPE_AKEY, "akey", 256 * 1024)
 
 #define DEFINE_TS_TYPE(type, desc, count)	type,
 
