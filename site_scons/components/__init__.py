@@ -303,6 +303,14 @@ def define_components(reqs):
     if inst(reqs, 'valgrind_devel'):
         abt_build.append('--enable-valgrind')
 
+    reqs.define('jemalloc',
+                retriever=GitRepoRetriever('https://github.com/jemalloc/jemalloc.git', True),
+                commands=[['./autogen.sh'],
+                          ['./configure', '--enable-prof', '--prefix=$JEMALLOC_PREFIX'],
+                          ['make'],
+                          ['make', 'install']],
+                libs=['jemalloc'])
+
     reqs.define('argobots',
                 retriever=GitRepoRetriever('https://github.com/pmodels/argobots.git', True),
                 commands=[['git', 'clean', '-dxf'],
