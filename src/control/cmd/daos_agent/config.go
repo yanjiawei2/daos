@@ -54,6 +54,7 @@ type Config struct {
 	DisableAutoEvict    bool                      `yaml:"disable_auto_evict,omitempty"`
 	ExcludeFabricIfaces common.StringSet          `yaml:"exclude_fabric_ifaces,omitempty"`
 	FabricInterfaces    []*NUMAFabricConfig       `yaml:"fabric_ifaces,omitempty"`
+	ClientCacheSize     uint64                    `yaml:"client_cache_size,omitempty"`
 }
 
 // NUMAFabricConfig defines a list of fabric interfaces that belong to a NUMA
@@ -97,5 +98,6 @@ func DefaultConfig() *Config {
 		LogFile:         defaultLogFile,
 		LogLevel:        common.DefaultControlLogLevel,
 		TransportConfig: security.DefaultAgentTransportConfig(),
+		ClientCacheSize: 0,
 	}
 }

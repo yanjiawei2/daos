@@ -49,6 +49,7 @@ disable_auto_evict: true
 transport_config:
   allow_insecure: true
 exclude_fabric_ifaces: ["ib3"]
+client_cache_size: 200
 fabric_ifaces:
 -
   numa_node: 0
@@ -132,6 +133,7 @@ transport_config:
 				DisableCache:     true,
 				CacheExpiration:  refreshMinutes(30 * time.Minute),
 				DisableAutoEvict: true,
+				ClientCacheSize:  200,
 				TransportConfig: &security.TransportConfig{
 					AllowInsecure:     true,
 					CertificateConfig: DefaultConfig().TransportConfig.CertificateConfig,
