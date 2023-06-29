@@ -200,6 +200,16 @@ vos_tx_publish(struct dtx_handle *dth, bool publish)
 }
 
 int
+vos_local_tx_begin(struct dtx_handle *dth)
+{
+}
+
+int
+vos_local_tx_end(struct dtx_handle *dth, int rc)
+{
+}
+
+int
 vos_tx_begin(struct dtx_handle *dth, struct umem_instance *umm, bool is_sysdb)
 {
 	int	rc;
