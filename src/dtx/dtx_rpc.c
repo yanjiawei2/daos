@@ -1267,5 +1267,11 @@ dtx_refresh(struct dtx_handle *dth, struct ds_cont_child *cont)
 		rc = -DER_INPROGRESS;
 	}
 
+	if (rc == -DER_AGAIN) {
+		rc = vos_local_tx_begin(dth);
+		if (rc == 0)
+			rc = -DER_AGAIN;
+	}
+
 	return rc;
 }

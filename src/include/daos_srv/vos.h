@@ -20,22 +20,18 @@
 #include <daos_srv/dtx_srv.h>
 #include <daos_srv/vos_types.h>
 
-/** Initialize the vos reserve/cancel related fields in dtx handle
- *
+/** Initialize and start a local transaction
  * \param dth	[IN]	The dtx handle
- *
- * \return	0 on success
- *		-DER_NOMEM on failure
  */
 int
-vos_dtx_rsrvd_init(struct dtx_handle *dth);
+vos_local_tx_begin(struct dtx_handle *dth);
 
-/** Finalize the vos reserve/cancel related fields in dtx handle
- *
- * \param dth	[IN]	The dtx handle
+/** Commit or abort and finalize the local transaction
+ * \param[in] dth	The dtx handle
+ * \param[in] rc	Return code for transaction
  */
-void
-vos_dtx_rsrvd_fini(struct dtx_handle *dth);
+int
+vos_local_tx_end(struct dtx_handle *dth, int rc);
 
 /**
  * Generate DTX entry for the given DTX, and attach it to the DTX handle.

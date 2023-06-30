@@ -3073,43 +3073,6 @@ vos_dtx_detach(struct dtx_handle *dth)
 	dth->dth_pinned = 0;
 }
 
-/** Allocate space for saving the vos reservations and deferred actions */
-int
-vos_dtx_rsrvd_init(struct dtx_handle *dth)
-{
-	dth->dth_rsrvd_cnt = 0;
-	dth->dth_deferred_cnt = 0;
-	D_INIT_LIST_HEAD(&dth->dth_deferred_nvme);
-
-	if (dth->dth_modification_cnt <= 1) {
-		dth->dth_rsrvds = &dth->dth_rsrvd_inline;
-		return 0;
-	}
-
-	D_ALLOC_ARRAY(dth->dth_rsrvds, dth->dth_modification_cnt);
-	if (dth->dth_rsrvds == NULL)
-		return -DER_NOMEM;
-
-	D_ALLOC_ARRAY(dth->dth_deferred, dth->dth_modification_cnt);
-	if (dth->dth_deferred == NULL) {
-		D_FREE(dth->dth_rsrvds);
-		return -DER_NOMEM;
-	}
-
-	return 0;
-}
-
-void
-vos_dtx_rsrvd_fini(struct dtx_handle *dth)
-{
-	if (dth->dth_rsrvds != NULL) {
-		D_ASSERT(d_list_empty(&dth->dth_deferred_nvme));
-		D_FREE(dth->dth_deferred);
-		if (dth->dth_rsrvds != &dth->dth_rsrvd_inline)
-			D_FREE(dth->dth_rsrvds);
-	}
-}
-
 int
 vos_dtx_cache_reset(daos_handle_t coh, bool force)
 {

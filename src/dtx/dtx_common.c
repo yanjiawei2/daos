@@ -836,9 +836,8 @@ dtx_handle_reinit(struct dtx_handle *dth)
 	dth->dth_oid_cap = 0;
 	D_FREE(dth->dth_oid_array);
 	dth->dth_dkey_hash = 0;
-	vos_dtx_rsrvd_fini(dth);
 
-	return vos_dtx_rsrvd_init(dth);
+	return 0;
 }
 
 /**
@@ -918,10 +917,7 @@ dtx_handle_init(struct dtx_id *dti, daos_handle_t coh, struct dtx_epoch *epoch,
 	dth->dth_epoch = epoch->oe_value;
 	dth->dth_epoch_bound = dtx_epoch_bound(epoch);
 
-	if (dth->dth_modification_cnt == 0)
-		return 0;
-
-	return vos_dtx_rsrvd_init(dth);
+	return 0;
 }
 
 static int
@@ -1395,7 +1391,6 @@ out:
 				result = -DER_INPROGRESS;
 		}
 
-		vos_dtx_rsrvd_fini(dth);
 		vos_dtx_detach(dth);
 	}
 

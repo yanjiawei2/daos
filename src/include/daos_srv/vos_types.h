@@ -25,6 +25,17 @@ struct dtx_rsrvd_uint {
 	d_list_t		dru_nvme;
 };
 
+struct vos_tx_info {
+	struct dtx_rsrvd_uint  dth_rsrvd_inline;
+	struct dtx_rsrvd_uint *dth_rsrvds;
+	void                 **dth_deferred;
+	/* NVME extents to release */
+	d_list_t               dth_deferred_nvme;
+	/** The count of reserved items in the dth_rsrvds array. */
+	uint16_t               dth_rsrvd_cnt;
+	uint16_t               dth_deferred_cnt;
+};
+
 enum dtx_cos_flags {
 	DCF_SHARED		= (1 << 0),
 	/* Some DTX (such as for the distributed transaction across multiple

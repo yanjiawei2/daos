@@ -513,7 +513,13 @@ ds_obj_cpd_get_tgts_cnt(crt_rpc_t *rpc, int dtx_idx)
 static inline bool
 obj_dtx_need_refresh(struct dtx_handle *dth, int rc)
 {
-	return rc == -DER_INPROGRESS && dth->dth_share_tbd_count > 0;
+	if (rc == -DER_INPROGRESS && dth->dth_share_tbd_count > 0) {
+		if (dth->dth_modification_cnt > 0)
+			vos_local_tx_end(dth, rc);
+		return true;
+	}
+
+	return false;
 }
 
 /* obj_enum.c */

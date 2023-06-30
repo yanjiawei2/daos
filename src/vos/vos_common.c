@@ -199,9 +199,65 @@ vos_tx_publish(struct dtx_handle *dth, bool publish)
 	return 0;
 }
 
+/** Allocate space for saving the vos reservations and deferred actions */
+static int
+vos_tx_info_init(struct vos_tx_info *info)
+{
+	info->ti_rsrvd_cnt    = 0;
+	info->ti_deferred_cnt = 0;
+	D_INIT_LIST_HEAD(&info->ti_deferred_nvme);
+
+	if (info->ti_modification_cnt <= 1) {
+		info->ti_rsrvds = &info->ti_rsrvd_inline;
+		return 0;
+	}
+
+	D_ALLOC_ARRAY(info->ti_rsrvds, info->ti_modification_cnt);
+	if (info->ti_rsrvds == NULL)
+		return -DER_NOMEM;
+
+	D_ALLOC_ARRAY(info->ti_deferred, info->ti_modification_cnt);
+	if (info->ti_deferred == NULL) {
+		D_FREE(info->ti_rsrvds);
+		return -DER_NOMEM;
+	}
+
+	return 0;
+}
+
+void
+vos_dtx_rsrvd_fini(struct vos_tx_info *info)
+{
+	if (info->ti_rsrvds != NULL) {
+		D_ASSERT(d_list_empty(&info->ti_deferred_nvme));
+		D_FREE(info->ti_deferred);
+		if (info->ti_rsrvds != &info->ti_rsrvd_inline)
+			D_FREE(info->ti_rsrvds);
+	}
+}
+
 int
 vos_local_tx_begin(struct dtx_handle *dth)
 {
+	int rc;
+
+	D_ASSERT(!dth->dth_local_tx_started);
+
+	rc = vos_tx_info_init(&dth->dth_tx_info);
+	if (rc != 0)
+		return rc;
+
+	vos_dth_set(dth, false);
+
+	rc = umem_tx_begin(umm, vos_txd_get(false));
+	if (rc != 0) {
+		vos_tx_info_fini(&dth->dth_tx_info);
+		return rc;
+	}
+
+	dth->dth_local_tx_started = 1;
+
+	return 0;
 }
 
 int
@@ -212,29 +268,18 @@ vos_local_tx_end(struct dtx_handle *dth, int rc)
 int
 vos_tx_begin(struct dtx_handle *dth, struct umem_instance *umm, bool is_sysdb)
 {
-	int	rc;
-
 	if (dth == NULL)
 		return umem_tx_begin(umm, vos_txd_get(is_sysdb));
 
-	D_ASSERT(!is_sysdb);
+	D_ASSERT(dth->dth_local_tx_started);
 	/** Note: On successful return, dth tls gets set and will be cleared by the corresponding
 	 *        call to vos_tx_end.  This is to avoid ever keeping that set after a call to
 	 *        umem_tx_end, which may yield for bio operations.
 	 */
+	vos_dth_set(dth, false);
+	D_ASSERT(!is_sysdb);
 
-	if (dth->dth_local_tx_started) {
-		vos_dth_set(dth, false);
-		return 0;
-	}
-
-	rc = umem_tx_begin(umm, vos_txd_get(is_sysdb));
-	if (rc == 0) {
-		dth->dth_local_tx_started = 1;
-		vos_dth_set(dth, false);
-	}
-
-	return rc;
+	return 0;
 }
 
 int
