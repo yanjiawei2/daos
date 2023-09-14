@@ -279,6 +279,9 @@ init_links(void)
 	FOREACH_INTERCEPT(IOIL_FORWARD_MAP_OR_FAIL);
 }
 
+static bool
+call_daos_init(int fd);
+
 static __attribute__((constructor)) void
 ioil_init(void)
 {
@@ -341,6 +344,15 @@ ioil_init(void)
 	}
 
 	ioil_iog.iog_initialized = true;
+
+	rc = pthread_mutex_lock(&ioil_iog.iog_lock);
+	D_ASSERT(rc == 0);
+
+	if (!ioil_iog.iog_daos_init)
+		(void)call_daos_init(0);
+
+	rc = pthread_mutex_unlock(&ioil_iog.iog_lock);
+	D_ASSERT(rc == 0);
 }
 
 static void
