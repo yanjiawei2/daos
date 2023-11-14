@@ -229,7 +229,7 @@ flush_ult(void *arg)
 	D_ASSERT(child->spc_flush_req != NULL);
 
 	while (!dss_ult_exiting(child->spc_flush_req)) {
-		rc = vos_flush_pool(child->spc_hdl, false, nr_flush, &nr_flushed);
+		rc = vos_flush_pool(child->spc_hdl, nr_flush, &nr_flushed);
 		if (rc < 0) {
 			D_ERROR(DF_UUID"[%d]: Flush pool failed. "DF_RC"\n",
 				DP_UUID(child->spc_uuid), dmi->dmi_tgt_id, DP_RC(rc));
@@ -427,12 +427,10 @@ pool_child_delete_one(void *uuid)
 	if (child == NULL)
 		return 0;
 
-	D_ASSERT(d_list_empty(&child->spc_cont_list));
 	d_list_del_init(&child->spc_list);
-	if (likely(!child->spc_no_storage)) {
-		ds_stop_chkpt_ult(child);
-		ds_stop_scrubbing_ult(child);
-	}
+	ds_cont_child_stop_all(child);
+	ds_stop_chkpt_ult(child);
+	ds_stop_scrubbing_ult(child);
 	ds_pool_child_put(child); /* -1 for the list */
 
 	ds_pool_child_put(child); /* -1 for lookup */
@@ -589,6 +587,8 @@ pool_free_ref(struct daos_llink *llink)
 		D_ERROR(DF_UUID": failed to delete ES pool caches: "DF_RC"\n",
 			DP_UUID(pool->sp_uuid), DP_RC(rc));
 
+	ds_cont_ec_eph_free(pool);
+
 	pl_map_disconnect(pool->sp_uuid);
 	if (pool->sp_map != NULL)
 		pool_map_decref(pool->sp_map);
@@ -701,13 +701,18 @@ pool_fetch_hdls_ult(void *data)
 	struct ds_pool	*pool = data;
 	int		rc = 0;
 
+	D_INFO(DF_UUID": begin: fetch_hdls=%u stopping=%u\n", DP_UUID(pool->sp_uuid),
+	       pool->sp_fetch_hdls, pool->sp_stopping);
+
 	/* sp_map == NULL means the IV ns is not setup yet, i.e.
 	 * the pool leader does not broadcast the pool map to the
 	 * current node yet, see pool_iv_pre_sync().
 	 */
 	ABT_mutex_lock(pool->sp_mutex);
-	if (pool->sp_map == NULL)
+	if (pool->sp_map == NULL) {
+		D_INFO(DF_UUID": waiting for map\n", DP_UUID(pool->sp_uuid));
 		ABT_cond_wait(pool->sp_fetch_hdls_cond, pool->sp_mutex);
+	}
 	ABT_mutex_unlock(pool->sp_mutex);
 
 	if (pool->sp_stopping) {
@@ -715,6 +720,7 @@ pool_fetch_hdls_ult(void *data)
 			DP_UUID(pool->sp_uuid));
 		D_GOTO(out, rc);
 	}
+	D_INFO(DF_UUID": fetching handles\n", DP_UUID(pool->sp_uuid));
 	rc = ds_pool_iv_conn_hdl_fetch(pool);
 	if (rc) {
 		D_ERROR("iv conn fetch %d\n", rc);
@@ -722,11 +728,13 @@ pool_fetch_hdls_ult(void *data)
 	}
 
 out:
+	D_INFO(DF_UUID": signaling done\n", DP_UUID(pool->sp_uuid));
 	ABT_mutex_lock(pool->sp_mutex);
 	ABT_cond_signal(pool->sp_fetch_hdls_done_cond);
 	ABT_mutex_unlock(pool->sp_mutex);
 
 	pool->sp_fetch_hdls = 0;
+	D_INFO(DF_UUID": end\n", DP_UUID(pool->sp_uuid));
 }
 
 static void
@@ -776,6 +784,9 @@ ds_pool_tgt_ec_eph_query_abort(struct ds_pool *pool)
 static void
 pool_fetch_hdls_ult_abort(struct ds_pool *pool)
 {
+	D_INFO(DF_UUID": begin: fetch_hdls=%u stopping=%u\n", DP_UUID(pool->sp_uuid),
+	       pool->sp_fetch_hdls, pool->sp_stopping);
+
 	if (!pool->sp_fetch_hdls) {
 		D_INFO(DF_UUID": fetch hdls ULT aborted\n", DP_UUID(pool->sp_uuid));
 		return;
@@ -784,8 +795,10 @@ pool_fetch_hdls_ult_abort(struct ds_pool *pool)
 	ABT_mutex_lock(pool->sp_mutex);
 	ABT_cond_signal(pool->sp_fetch_hdls_cond);
 	ABT_mutex_unlock(pool->sp_mutex);
+	D_INFO(DF_UUID": signaled\n", DP_UUID(pool->sp_uuid));
 
 	ABT_mutex_lock(pool->sp_mutex);
+	D_INFO(DF_UUID": waiting for ULT\n", DP_UUID(pool->sp_uuid));
 	ABT_cond_wait(pool->sp_fetch_hdls_done_cond, pool->sp_mutex);
 	ABT_mutex_unlock(pool->sp_mutex);
 	D_INFO(DF_UUID": fetch hdls ULT aborted\n", DP_UUID(pool->sp_uuid));
@@ -967,37 +980,6 @@ failure_pool:
 }
 
 /*
- * Called via dss_thread_collective() to stop all container services
- * on the current xstream.
- */
-static int
-pool_child_stop_containers(void *uuid)
-{
-	struct ds_pool_child *child;
-
-	child = ds_pool_child_lookup(uuid);
-	if (child == NULL)
-		return 0;
-
-	if (likely(!child->spc_no_storage))
-		ds_cont_child_stop_all(child);
-	ds_pool_child_put(child); /* -1 for the list */
-	return 0;
-}
-
-static int
-ds_pool_stop_all_containers(struct ds_pool *pool)
-{
-	int rc;
-
-	rc = dss_thread_collective(pool_child_stop_containers, pool->sp_uuid, 0);
-	if (rc != 0)
-		D_ERROR(DF_UUID": failed to stop container service: "DF_RC"\n",
-			DP_UUID(pool->sp_uuid), DP_RC(rc));
-	return rc;
-}
-
-/*
  * Stop a pool. Must be called on the system xstream. Release the ds_pool
  * object reference held by ds_pool_start. Only for mgmt and pool modules.
  */
@@ -1015,12 +997,6 @@ ds_pool_stop(uuid_t uuid)
 	pool->sp_stopping = 1;
 
 	ds_iv_ns_stop(pool->sp_iv_ns);
-
-	/* Though all containers started in pool_alloc_ref, we need stop all
-	 * containers service before tgt_ec_eqh_query_ult(), otherwise container
-	 * EC aggregation ULT might try to access ec_eqh_query structure.
-	 */
-	ds_pool_stop_all_containers(pool);
 	ds_pool_tgt_ec_eph_query_abort(pool);
 	pool_fetch_hdls_ult_abort(pool);
 
@@ -1028,7 +1004,7 @@ ds_pool_stop(uuid_t uuid)
 	ds_migrate_stop(pool, -1, -1);
 	ds_pool_put(pool); /* held by ds_pool_start */
 	ds_pool_put(pool);
-	D_INFO(DF_UUID": pool service is aborted\n", DP_UUID(uuid));
+	D_INFO(DF_UUID": pool stopped\n", DP_UUID(uuid));
 }
 
 /* ds_pool_hdl ****************************************************************/
@@ -1503,7 +1479,7 @@ update_pool_group(struct ds_pool *pool, struct pool_map *map)
 	D_DEBUG(DB_MD, DF_UUID": %u -> %u\n", DP_UUID(pool->sp_uuid), version,
 		pool_map_get_version(map));
 
-	rc = map_ranks_init(map, POOL_GROUP_MAP_STATUS, &ranks);
+	rc = map_ranks_init(map, POOL_GROUP_MAP_STATES, &ranks);
 	if (rc != 0)
 		return rc;
 
@@ -1930,8 +1906,13 @@ obj_discard_cb(daos_handle_t ch, vos_iter_entry_t *ent,
 	       void *data, unsigned *acts)
 {
 	struct child_discard_arg	*arg = data;
+	struct d_backoff_seq		backoff_seq;
 	daos_epoch_range_t		epr;
 	int				rc;
+
+	rc = d_backoff_seq_init(&backoff_seq, 0 /* nzeros */, 16 /* factor */, 8 /* next (ms) */,
+				1 << 10 /* max (ms) */);
+	D_ASSERTF(rc == 0, "d_backoff_seq_init: "DF_RC"\n", DP_RC(rc));
 
 	epr.epr_hi = arg->tgt_discard->epoch;
 	epr.epr_lo = 0;
@@ -1944,8 +1925,10 @@ obj_discard_cb(daos_handle_t ch, vos_iter_entry_t *ent,
 
 		D_DEBUG(DB_REBUILD, "retry by "DF_RC"/"DF_UOID"\n",
 			DP_RC(rc), DP_UOID(ent->ie_oid));
-		dss_sleep(0);
+		dss_sleep(d_backoff_seq_next(&backoff_seq));
 	} while (1);
+
+	d_backoff_seq_fini(&backoff_seq);
 
 	if (rc != 0)
 		D_ERROR("discard object pool/object "DF_UUID"/"DF_UOID" rc: "DF_RC"\n",
@@ -1965,6 +1948,7 @@ cont_discard_cb(daos_handle_t ih, vos_iter_entry_t *entry,
 	vos_iter_param_t	param = { 0 };
 	struct vos_iter_anchors	anchor = { 0 };
 	daos_handle_t		coh;
+	struct d_backoff_seq	backoff_seq;
 	int			rc;
 
 	D_ASSERT(type == VOS_ITER_COUUID);
@@ -1989,6 +1973,10 @@ cont_discard_cb(daos_handle_t ih, vos_iter_entry_t *entry,
 		D_GOTO(put, rc);
 	}
 
+	rc = d_backoff_seq_init(&backoff_seq, 0 /* nzeros */, 16 /* factor */, 8 /* next (ms) */,
+				1 << 10 /* max (ms) */);
+	D_ASSERTF(rc == 0, "d_backoff_seq_init: "DF_RC"\n", DP_RC(rc));
+
 	param.ip_hdl = coh;
 	param.ip_epr.epr_lo = 0;
 	param.ip_epr.epr_hi = arg->tgt_discard->epoch;
@@ -2003,9 +1991,10 @@ cont_discard_cb(daos_handle_t ih, vos_iter_entry_t *entry,
 
 		D_DEBUG(DB_REBUILD, "retry by "DF_RC"/"DF_UUID"\n",
 			DP_RC(rc), DP_UUID(entry->ie_couuid));
-		dss_sleep(0);
+		dss_sleep(d_backoff_seq_next(&backoff_seq));
 	} while (1);
 
+	d_backoff_seq_fini(&backoff_seq);
 	vos_cont_close(coh);
 	D_DEBUG(DB_TRACE, DF_UUID"/"DF_UUID" discard cont done: "DF_RC"\n",
 		DP_UUID(arg->tgt_discard->pool_uuid), DP_UUID(entry->ie_couuid),
@@ -2026,6 +2015,7 @@ pool_child_discard(void *data)
 	struct vos_iter_anchors	anchor = { 0 };
 	struct pool_target_addr addr;
 	uint32_t		myrank;
+	struct d_backoff_seq	backoff_seq;
 	int			rc;
 
 	myrank = dss_self_rank();
@@ -2044,6 +2034,10 @@ pool_child_discard(void *data)
 	D_ASSERT(child != NULL);
 	param.ip_hdl = child->spc_hdl;
 
+	rc = d_backoff_seq_init(&backoff_seq, 0 /* nzeros */, 16 /* factor */, 8 /* next (ms) */,
+				1 << 10 /* max (ms) */);
+	D_ASSERTF(rc == 0, "d_backoff_seq_init: "DF_RC"\n", DP_RC(rc));
+
 	cont_arg.tgt_discard = arg;
 	child->spc_discard_done = 0;
 	do {
@@ -2054,10 +2048,12 @@ pool_child_discard(void *data)
 
 		D_DEBUG(DB_REBUILD, "retry by "DF_RC"/"DF_UUID"\n",
 			DP_RC(rc), DP_UUID(arg->pool_uuid));
-		dss_sleep(0);
+		dss_sleep(d_backoff_seq_next(&backoff_seq));
 	} while (1);
 
 	child->spc_discard_done = 1;
+
+	d_backoff_seq_fini(&backoff_seq);
 
 	ds_pool_child_put(child);
 

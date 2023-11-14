@@ -697,28 +697,6 @@ start_mode_str(enum ds_rsvc_start_mode mode)
 }
 
 static bool
-nominated(d_rank_list_t *replicas, uuid_t db_uuid)
-{
-	int i;
-
-	/* No initial membership. */
-	if (replicas == NULL || replicas->rl_nr < 1)
-		return false;
-
-	/* Only one replica. */
-	if (replicas->rl_nr == 1)
-		return true;
-
-	/*
-	 * Nominate by hashing the DB UUID. The only requirement is that every
-	 * replica shall end up with the same nomination.
-	 */
-	i = d_hash_murmur64(db_uuid, sizeof(uuid_t), 0x2db) % replicas->rl_nr;
-
-	return (replicas->rl_ranks[i] == dss_self_rank());
-}
-
-static bool
 self_only(d_rank_list_t *replicas)
 {
 	return (replicas != NULL && replicas->rl_nr == 1 &&
@@ -756,20 +734,6 @@ start(enum ds_rsvc_class_id class, d_iov_t *id, uuid_t db_uuid, uint64_t term,
 	rc = rdb_start(storage, &svc->s_db);
 	if (rc != 0)
 		goto err_storage;
-
-	/*
-	 * If creating a replica with an initial membership, we are
-	 * bootstrapping the DB (via sc_bootstrap or an external mechanism). If
-	 * we are the "nominated" replica, start a campaign without waiting for
-	 * the election timeout.
-	 */
-	if (mode == DS_RSVC_CREATE && nominated(replicas, svc->s_db_uuid)) {
-		/* Give others a chance to get ready for voting. */
-		dss_sleep(1 /* ms */);
-		rc = rdb_campaign(svc->s_db);
-		if (rc != 0)
-			goto err_db;
-	}
 
 	if (mode == DS_RSVC_CREATE && self_only(replicas) &&
 	    rsvc_class(class)->sc_bootstrap != NULL) {
@@ -1398,7 +1362,7 @@ ds_rsvc_start_aggregator(crt_rpc_t *source, crt_rpc_t *result, void *priv)
  *
  * XXX excluded and ranks are a bit duplicate here, since this function only
  * suppose to send RPC to @ranks list, but cart does not have such interface
- * for collective RPC, so we have to use both ranks and exclued for the moment,
+ * for collective RPC, so we have to use both ranks and excluded for the moment,
  * and it should be simplified once cart can provide rank list collective RPC.
  *
  * \param[in]	class		replicated service class
@@ -1515,8 +1479,8 @@ ds_rsvc_get_md_cap(void)
 	v = getenv(DAOS_MD_CAP_ENV); /* in MB */
 	if (v == NULL)
 		return size_default;
-	n = atoi(v);    /* FIXME DAOS-9846 */
-	if (n < size_default >> 20) {
+	n = atoi(v);
+	if ((n << 20) < MINIMUM_DAOS_MD_CAP_SIZE) {
 		D_ERROR("metadata capacity too low; using %zu MB\n",
 			size_default >> 20);
 		return size_default;
