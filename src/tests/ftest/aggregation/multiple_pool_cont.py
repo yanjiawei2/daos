@@ -81,7 +81,7 @@ class DaosAggregationMultiPoolCont(IorTestBase):
 
         job_manager = get_job_manager(self, subprocess=False, timeout=self.get_remaining_time())
         # Create requested pools
-        self.add_pool_qty(total_pools, connect=False)
+        self.pool = [self.get_pool(connect=False) for _ in range(total_pools)]
         start_time = time.time()
         while int(finish_time - start_time) < int(total_runtime):
             # Since the transfer size is 1M, the objects will be inserted
@@ -90,22 +90,22 @@ class DaosAggregationMultiPoolCont(IorTestBase):
 
             self.save_free_space(0, storage_index)
 
+            self.container = []
             for pool in self.pool:
                 # Disable the aggregation
                 pool.set_property("reclaim", "disabled")
                 # Create the containers requested per pool
-                self.add_container_qty(total_containers_per_pool, pool)
+                self.container.extend(
+                    self.get_container(pool) for _ in range(total_containers_per_pool))
 
             # Run ior on each container sequentially
             for idx in [1, 2]:
-                for container in self.container:
-                    ior_log = "{}_{}_{}_ior1.log".format(self.test_id,
-                                                         container.pool.identifier,
-                                                         container.identifier)
+                for cont in self.container:
+                    ior_log = "_".join(self.test_id, cont.pool.identifier, cont.identifier)
                     try:
                         result = run_ior(self, job_manager, ior_log, self.hostlist_clients,
                                          self.workdir, None, self.server_group,
-                                         container.pool, container,
+                                         cont.pool, cont,
                                          self.processes)
                         self.log.info(result)
                     except CommandFailure as error:

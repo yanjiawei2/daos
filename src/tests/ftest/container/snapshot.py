@@ -38,7 +38,7 @@ class Snapshot(TestWithServers):
 
         # initialize a python pool object then create the underlying
         # daos storage and connect to it
-        self.prepare_pool()
+        self.pool = self.get_pool()
 
         try:
             # create a container

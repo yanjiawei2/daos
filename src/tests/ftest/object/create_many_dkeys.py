@@ -89,9 +89,9 @@ class CreateManyDkeys(TestWithServers):
         :avocado: tags=all,full_regression
         :avocado: tags=vm
         :avocado: tags=object
-        :avocado: tags=many_dkeys,test_many_dkeys
+        :avocado: tags=CreateManyDkeys,test_many_dkeys
         """
-        self.prepare_pool()
+        self.pool = self.get_pool()
         no_of_dkeys = self.params.get("number_of_dkeys", '/run/dkeys/')
 
         # write a lot of individual data items, verify them, then destroy

@@ -1725,16 +1725,6 @@ class TestWithServers(TestWithoutServers):
         daos_command.get_params(self)
         return daos_command
 
-    def prepare_pool(self):
-        """Prepare the self.pool TestPool object.
-
-        Create a TestPool object, read the pool parameters from the yaml, create
-        the pool, and connect to the pool.
-
-        This sequence is common for a lot of the container tests.
-        """
-        self.add_pool()
-
     def get_pool(self, namespace=POOL_NAMESPACE, create=True, connect=True, dmg=None, **params):
         """Get a test pool object.
 
@@ -1772,34 +1762,6 @@ class TestWithServers(TestWithoutServers):
                 calls test.get_dmg_command().
         """
         self.pool = self.get_pool(namespace, create, connect, dmg, **params)
-
-    def add_pool_qty(self, quantity, namespace=POOL_NAMESPACE, create=True, connect=True, dmg=None):
-        """Add multiple pools to the test case.
-
-        This method requires self.pool to be defined as a list.  If self.pool is
-        undefined it will define it as a list.
-
-        Args:
-            quantity (int): number of pools to create
-            namespace (str, optional): namespace for TestPool parameters in the
-                test yaml file. Defaults to POOL_NAMESPACE.
-            create (bool, optional): should the pool be created. Defaults to
-                True.
-            connect (bool, optional): should the pool be connected. Defaults to
-                True.
-            dmg (DmgCommand, optional): dmg command used to create the pool. Defaults to None, which
-                calls test.get_dmg_command().
-
-        Raises:
-            TestFail: if self.pool is defined, but not as a list object.
-
-        """
-        if self.pool is None:
-            self.pool = []
-        if not isinstance(self.pool, list):
-            self.fail("add_pool_qty(): self.pool must be a list: {}".format(type(self.pool)))
-        for _ in range(quantity):
-            self.pool.append(self.get_pool(namespace, create, connect, dmg))
 
     @fail_on(AttributeError)
     def get_container(self, pool, namespace=None, create=True, daos_command=None, **kwargs):
@@ -1851,34 +1813,6 @@ class TestWithServers(TestWithoutServers):
                 to True.
         """
         self.container = self.get_container(pool=pool, namespace=namespace, create=create)
-
-    def add_container_qty(self, quantity, pool, namespace=None, create=True):
-        """Add multiple containers to the test case.
-
-        This method requires self.container to be defined as a list.
-        If self.container is undefined it will define it as a list.
-
-        Args:
-            quantity (int): number of containers to create
-            namespace (str, optional): namespace for TestContainer parameters in the
-                test yaml file. Defaults to None.
-            pool (TestPool): Pool object
-            create (bool, optional): should the container be created. Defaults to
-                True.
-
-        Raises:
-            TestFail: if self.pool is defined, but not as a list object.
-
-        """
-        if self.container is None:
-            self.container = []
-        if not isinstance(self.container, list):
-            self.fail(
-                "add_container_qty(): self.container must be a list: {}".format(
-                    type(self.container)))
-        for _ in range(quantity):
-            self.container.append(
-                self.get_container(pool=pool, namespace=namespace, create=create))
 
     def start_additional_servers(self, additional_servers, index=0, access_points=None):
         """Start additional servers.

@@ -105,7 +105,8 @@ class PoolCreateAllTestBase(TestWithServers):
             ranks (list, optional): List of rank used for creating pools.  Defaults to None.
         """
         pool_count = 4 if nvme_delta_bytes is None else 5
-        self.add_pool_qty(pool_count, create=False)
+        self.pool = self.pool or []
+        self.pool.extend(self.get_pool(create=False) for _ in range(pool_count))
         pool_idx = len(self.pool) - pool_count
 
         self.log.info("Creating a pool with all the available storage: size=100%")
@@ -218,7 +219,9 @@ class PoolCreateAllTestBase(TestWithServers):
             nvme_delta_bytes (int, optional): Allowed difference of the NVMe pool storage.  Defaults
                 to None.
         """
-        self.add_pool_qty(pool_count, namespace="/run/pool/*", create=False)
+        self.pool = self.pool or []
+        self.pool.extend(
+            self.get_pool(namespace="/run/pool/*", create=False) for _ in range(pool_count))
 
         first_pool_size = None
         for index in range(pool_count):
@@ -342,14 +345,13 @@ class PoolCreateAllTestBase(TestWithServers):
             scm_delta_bytes (int): Allowed difference of the SCM pool storage.
             nvme_delta_bytes (int): Allowed difference of the NVMe pool storage.
         """
-        self.add_pool_qty(1, namespace="/run/pool/*", create=False)
+        self.pool = self.pool or []
 
         usable_bytes = self.get_usable_bytes()
         self.log.info("Usable bytes: scm_size=%d, nvme_size=%d", *usable_bytes)
 
         self.log.info("Creating pool with half of the available storage: size=50%")
-        self.pool[0].size.update("50%")
-        self.pool[0].create()
+        self.pool.append(self.get_pool(namespace="/run/pool/*", size="50%"))
         self.pool[0].get_info()
         s_total = self.pool[0].info.pi_space.ps_space.s_total
         pool_size = (int(s_total[0]), int(s_total[1]))

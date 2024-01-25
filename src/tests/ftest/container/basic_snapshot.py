@@ -25,11 +25,6 @@ class BasicSnapshot(TestWithServers):
     :avocado: recursive
     """
 
-    def __init__(self, *args, **kwargs):
-        """Initialize a BasicSnapshot object."""
-        super().__init__(*args, **kwargs)
-        self.snapshot = None
-
     def test_basic_snapshot(self):
         """Test ID: DAOS-1370.
 
@@ -51,14 +46,14 @@ class BasicSnapshot(TestWithServers):
         try:
             # initialize a pool object then create the underlying
             # daos storage, and connect
-            self.prepare_pool()
+            pool = self.get_pool()
 
             # create a container
-            self.container = DaosContainer(self.context)
-            self.container.create(self.pool.pool.handle)
+            container = DaosContainer(self.context)
+            container.create(pool.pool.handle)
 
             # now open it
-            self.container.open()
+            container.open()
 
         except DaosApiError as error:
             self.log.error(str(error))
@@ -71,15 +66,11 @@ class BasicSnapshot(TestWithServers):
             datasize = len(thedata) + 1
             dkey = b"dkey"
             akey = b"akey"
-            obj = self.container.write_an_obj(thedata,
-                                              datasize,
-                                              dkey,
-                                              akey,
-                                              obj_cls=obj_cls)
+            obj = container.write_an_obj(thedata, datasize, dkey, akey, obj_cls=obj_cls)
             obj.close()
             # Take a snapshot of the container
-            self.snapshot = DaosSnapshot(self.context)
-            self.snapshot.create(self.container.coh)
+            snapshot = DaosSnapshot(self.context)
+            snapshot.create(container.coh)
             self.log.info("Wrote an object and created a snapshot")
 
         except DaosApiError as error:
@@ -95,7 +86,7 @@ class BasicSnapshot(TestWithServers):
             while more_transactions:
                 size = self.random.randint(1, 250) + 1
                 new_data = get_random_bytes(size)
-                new_obj = self.container.write_an_obj(
+                new_obj = container.write_an_obj(
                     new_data, size, dkey, akey, obj_cls=obj_cls)
                 new_obj.close()
                 more_transactions -= 1
@@ -106,13 +97,13 @@ class BasicSnapshot(TestWithServers):
 
         # List the snapshot
         try:
-            reported_epoch = self.snapshot.list(self.container.coh)
+            reported_epoch = snapshot.list(container.coh)
         except DaosApiError as error:
             self.fail(
                 "Test was unable to list the snapshot\n{0}".format(error))
 
         # Make sure the snapshot reflects the original epoch
-        if self.snapshot.epoch != reported_epoch:
+        if snapshot.epoch != reported_epoch:
             self.fail(
                 "The snapshot epoch returned from snapshot list is not the "
                 "same as the original epoch snapshotted.")
@@ -124,8 +115,8 @@ class BasicSnapshot(TestWithServers):
         # Get a handle for the snapshot and read the object at dkey, akey.
         try:
             obj.open()
-            snap_handle = self.snapshot.open(self.container.coh)
-            thedata2 = self.container.read_an_obj(
+            snap_handle = snapshot.open(container.coh)
+            thedata2 = container.read_an_obj(
                 datasize, dkey, akey, obj, txn=snap_handle.value)
         except DaosApiError as error:
             self.fail(
@@ -141,7 +132,7 @@ class BasicSnapshot(TestWithServers):
 
         # Now destroy the snapshot
         try:
-            self.snapshot.destroy(self.container.coh)
+            snapshot.destroy(container.coh)
             self.log.info("Snapshot successfully destroyed")
 
         except DaosApiError as error:

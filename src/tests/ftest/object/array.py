@@ -17,10 +17,6 @@ class ArrayObjTest(TestWithServers):
     A very simple test verifying the ability to read/write arrays to an object.
     :avocado: recursive
     """
-    def setUp(self):
-        super().setUp()
-        self.plog = logging.getLogger("progress")
-
     def test_array_obj(self):
         """
         Test ID: DAOS-961
@@ -31,15 +27,15 @@ class ArrayObjTest(TestWithServers):
         :avocado: tags=all,daily_regression
         :avocado: tags=vm
         :avocado: tags=object,smoke
-        :avocado: tags=basicobject,test_array_obj
+        :avocado: tags=ArrayObjTest,test_array_obj
         """
-        self.prepare_pool()
+        pool = self.get_pool()
 
         try:
             # create a container
             container = DaosContainer(self.context)
-            container.create(self.pool.pool.handle)
-            self.plog.info("Container %s created.", container.get_uuid_str())
+            container.create(pool.pool.handle)
+            self.log.info("Container %s created.", container.get_uuid_str())
 
             # now open it
             container.open()
@@ -60,7 +56,7 @@ class ArrayObjTest(TestWithServers):
             dkey = b"this is the dkey"
             akey = b"this is the akey"
 
-            self.plog.info("writing array to dkey >%s< akey >%s<.", dkey, akey)
+            self.log.info("writing array to dkey >%s< akey >%s<.", dkey, akey)
             oid = container.write_an_array_value(thedata, dkey, akey, obj_cls=3)
 
             # read the data back and make sure its correct
@@ -68,15 +64,15 @@ class ArrayObjTest(TestWithServers):
             thedata2 = container.read_an_array(len(thedata), length + 1,
                                                dkey, akey, oid)
             if thedata[0][0:length - 1] != thedata2[0][0:length - 1]:
-                self.plog.error("Data mismatch")
-                self.plog.error("Wrote: >%s<", thedata[0])
-                self.plog.error("Read: >%s<", thedata2[0])
+                self.log.error("Data mismatch")
+                self.log.error("Wrote: >%s<", thedata[0])
+                self.log.error("Read: >%s<", thedata2[0])
                 self.fail("Write data, read it back, didn't match\n")
 
             if thedata[2][0:length - 1] != thedata2[2][0:length - 1]:
-                self.plog.error("Data mismatch")
-                self.plog.error("Wrote: >%s<", thedata[2])
-                self.plog.error("Read: >%s<", thedata2[2])
+                self.log.error("Data mismatch")
+                self.log.error("Wrote: >%s<", thedata[2])
+                self.log.error("Read: >%s<", thedata2[2])
                 self.fail("Write data, read it back, didn't match\n")
 
             container.close()
@@ -85,10 +81,10 @@ class ArrayObjTest(TestWithServers):
             time.sleep(5)
             container.destroy()
 
-            self.plog.info("Test Complete")
+            self.log.info("Test Complete")
 
         except DaosApiError as excep:
-            self.plog.error("Test Failed, exception was thrown.")
-            print(excep)
-            print(traceback.format_exc())
+            self.log.error("Test Failed, exception was thrown.")
+            self.log.error(excep)
+            self.log.error(traceback.format_exc())
             self.fail("Test was expected to pass but it failed.\n")

@@ -50,20 +50,18 @@ class IoSysAdmin(DataMoverTestBase, FileCountTestBase):
             self.hostlist_clients, "groupadd", new_test_group)
 
         for idx in range(1, 4):
-            self.add_pool_qty(1, namespace="/run/pool_{}/".format(idx), create=False)
-            check_pool_creation(self, self.pool, 60)
-            self.pool[-1].connect()
+            pool = self.get_pool(namespace=f"/run/pool_{idx}/", create=False)
+            check_pool_creation(self, pool, 60)
+            pool.connect()
+            containers = []
             for cont_idx in range(1, 4):
-                self.add_container_qty(1, self.pool[-1],
-                                       namespace="/run/container_{}/".format(cont_idx))
-                daos.container_set_owner(self.pool[-1].identifier, self.container[-1].identifier,
-                                         new_test_user, new_test_group)
+                containers.append(
+                    self.get_container(pool, namespace=f"/run/container_{cont_idx}/"))
+                containers[-1].set_owner(new_test_user, new_test_group)
 
-            daos.container_list(self.pool[-1].identifier)
-            self.destroy_containers(self.container)
-            self.container = None
-            self.destroy_pools(self.pool)
-            self.pool = None
+            daos.container_list(pool.identifier)
+            self.destroy_containers(containers)
+            self.destroy_pools(pool)
 
         # dmg storage scan
         dmg.storage_scan()

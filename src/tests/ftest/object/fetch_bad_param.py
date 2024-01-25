@@ -20,7 +20,7 @@ class ObjFetchBadParam(TestWithServers):
         super().setUp()
         time.sleep(5)
 
-        self.prepare_pool()
+        self.pool = self.get_pool()
 
         try:
             # create a container

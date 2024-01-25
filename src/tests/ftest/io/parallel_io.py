@@ -135,12 +135,12 @@ class ParallelIo(FioBase, IorTestBase):
         self.create_pool()
         self.start_dfuse(self.hostlist_clients, self.pool[0], None)
         # create multiple containers
-        self.add_container_qty(self.cont_count, self.pool[0])
+        self.container = [self.get_container(self.pool[0]) for _ in range(self.cont_count)]
 
         # check if all the created containers can be accessed and perform
         # io on each container using fio in parallel
-        for _, cont in enumerate(self.container):
-            dfuse_cont_dir = self.dfuse.mount_dir.value + "/" + cont.uuid
+        for cont in self.container:
+            dfuse_cont_dir = os.path.join(self.dfuse.mount_dir.value, cont.uuid)
             cmd = "ls -a {}".format(dfuse_cont_dir)
             # execute bash cmds
             result = run_remote(self.log, self.hostlist_clients, cmd, timeout=30)
@@ -148,8 +148,7 @@ class ParallelIo(FioBase, IorTestBase):
                 self.fail("Error running '{}' on the following hosts: {}".format(
                     cmd, result.failed_hosts))
             # run fio on all containers
-            thread = threading.Thread(target=self.execute_fio, args=(
-                self.dfuse.mount_dir.value + "/" + cont.uuid, False))
+            thread = threading.Thread(target=self.execute_fio, args=(dfuse_cont_dir, False))
             threads.append(thread)
             thread.start()
 
@@ -229,8 +228,9 @@ class ParallelIo(FioBase, IorTestBase):
         # be parallelized as different container create could complete at
         # different times and get appended in the self.container variable in
         # unordered manner, causing problems during the write process.
-        for _, pool in enumerate(self.pool):
-            self.add_container_qty(self.cont_count, pool)
+        self.container = []
+        for pool in self.pool:
+            self.container.extend(self.get_container(pool) for _ in range(self.cont_count))
 
         # Try to access each dfuse mounted container using ls. Once it is
         # accessed successfully, go ahead and perform io on that location

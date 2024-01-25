@@ -17,7 +17,7 @@ class PunchTest(TestWithServers):
 
     def setUp(self):
         super().setUp()
-        self.prepare_pool()
+        self.pool = self.get_pool()
 
         try:
             # create a container
