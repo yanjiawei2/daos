@@ -865,7 +865,7 @@ crt_hg_class_init(int provider, int idx, bool primary, hg_class_t **ret_hg_class
 
 	init_info.na_init_info.auth_key = prov_data->cpg_na_config.noc_auth_key;
 
-	if (crt_provider_is_block_mode(provider))
+	if (crt_provider_is_block_mode(provider) && !prov_data->cpg_busy_wait)
 		init_info.na_init_info.progress_mode = 0;
 	else
 		init_info.na_init_info.progress_mode = NA_NO_BLOCK;
