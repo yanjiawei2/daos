@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2016-2023 Intel Corporation.
+ * (C) Copyright 2016-2024 Intel Corporation.
  *
  * SPDX-License-Identifier: BSD-2-Clause-Patent
  */
@@ -1526,6 +1526,79 @@ crt_hg_reply_error_send(struct crt_rpc_priv *rpc_priv, int error_code)
 			  error_code);
 	}
 	rpc_priv->crp_reply_pending = 0;
+}
+
+static inline unsigned int
+crt_time_to_hg(struct timespec tv)
+{
+	return (unsigned int)(tv.tv_sec * 1000 + ((tv.tv_nsec + 999999) / 1000000));
+}
+
+#define CRT_HG_TRIGGER_MAX (128)
+int
+crt_hg_progress1(struct crt_hg_context *hg_ctx, int64_t timeout_us)
+{
+	unsigned int    trigger_count = 0;
+	struct timespec deadline, now = {.tv_sec = 0, .tv_nsec = 0};
+	hg_context_t   *hg_context = hg_ctx->chc_hgctx;
+	bool            progressed = false;
+	int             rc         = 0;
+
+	if (timeout_us > 0) {
+		d_gettime_coarse(&now);
+		deadline = now;
+		d_timeinc(&deadline, (uint64_t)(timeout_us * 1000));
+	} else
+		deadline = now;
+
+	for (;;) {
+		hg_return_t  hg_ret;
+		unsigned int count = 0, hg_timeout_ms;
+
+		/* Try to trigger from HG queue first */
+		hg_ret = HG_Trigger(hg_context, 0, CRT_HG_TRIGGER_MAX, &count);
+		if (hg_ret != HG_SUCCESS && hg_ret != HG_TIMEOUT) {
+			D_ERROR("HG_Trigger failed, hg_ret: " DF_HG_RC "\n", DP_HG_RC(hg_ret));
+			rc = crt_hgret_2_der(hg_ret);
+			break;
+		}
+
+		trigger_count += count;
+		if (trigger_count > 0 && progressed)
+			break; /* Progressed */
+
+		if (timeout_us != 0) {
+			if (!d_timeless(now, deadline)) {
+				rc = -DER_TIMEDOUT;
+				break;
+			}
+			/* If something was triggered, call progress without blocking */
+			hg_timeout_ms =
+			    (trigger_count > 0) ? 0 : crt_time_to_hg(d_timediff(now, deadline));
+		} else
+			hg_timeout_ms = 0;
+
+		/* Progress RPC execution */
+		hg_ret = HG_Progress(hg_context, hg_timeout_ms);
+		if (hg_ret == HG_SUCCESS)
+			progressed = true;
+		else {
+			/* If progress timed out and something was triggered, succeed */
+			if (hg_ret == HG_TIMEOUT)
+				rc = (trigger_count > 0) ? 0 : -DER_TIMEDOUT;
+			else if (hg_ret != HG_SUCCESS) {
+				D_ERROR("HG_Progress failed, hg_ret: " DF_HG_RC "\n",
+					DP_HG_RC(hg_ret));
+				rc = crt_hgret_2_der(hg_ret);
+			}
+			break;
+		}
+
+		if (timeout_us != 0)
+			d_gettime_coarse(&now);
+	}
+
+	return rc;
 }
 
 int
