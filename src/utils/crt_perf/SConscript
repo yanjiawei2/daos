@@ -19,7 +19,7 @@ def scons():
     # tenv.AppendUnique(CCFLAGS=['-fsanitize=thread'])
     # tenv.AppendUnique(LINKFLAGS=['-fsanitize=thread'])
 
-    libs = ['cart', 'gurt', 'mercury', 'dl']
+    libs = ['cart', 'gurt', 'mercury', 'dl', 'pthread']
 
     crt_perf_src = [tenv.Object('crt_perf.c'), tenv.Object('crt_perf_mpi.c')]
     crt_perf_exe = ['crt_rate.c', 'crt_bw_write.c', 'crt_bw_read.c', 'crt_perf_server.c']
