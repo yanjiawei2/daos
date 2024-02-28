@@ -1,5 +1,5 @@
 //
-// (C) Copyright 2021-2023 Intel Corporation.
+// (C) Copyright 2021-2024 Intel Corporation.
 //
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 //
@@ -93,6 +93,7 @@ type (
 		UID              string
 		PartNumber       string
 		FirmwareRevision string
+		HealthState      string
 	}
 
 	// ScmModules is a type alias for []ScmModule that implements fmt.Stringer.
@@ -173,13 +174,14 @@ func (sms ScmModules) String() string {
 	var buf bytes.Buffer
 
 	if len(sms) == 0 {
-		return "\t\tnone\n"
+		return "\tnone\n"
 	}
 
 	sort.Slice(sms, func(i, j int) bool { return sms[i].PhysicalID < sms[j].PhysicalID })
 
+	fmt.Fprintf(&buf, "\n")
 	for _, sm := range sms {
-		fmt.Fprintf(&buf, "\t\t%s\n", sm)
+		fmt.Fprintf(&buf, "\t%s\n", sm)
 	}
 
 	return buf.String()
@@ -228,6 +230,29 @@ func (sn ScmNamespace) Usable() uint64 {
 		return 0
 	}
 	return sn.Mount.UsableBytes
+}
+
+func (sn *ScmNamespace) String() string {
+	// capacity given in IEC standard units.
+	return fmt.Sprintf("UUID:%s BlockDev:%s Name:%s NUMA:%d Size:%s Mount:%+v",
+		sn.UUID, sn.BlockDevice, sn.Name, sn.NumaNode, humanize.IBytes(sn.Size), sn.Mount)
+}
+
+func (sns ScmNamespaces) String() string {
+	var buf bytes.Buffer
+
+	if len(sns) == 0 {
+		return "\tnone\n"
+	}
+
+	sort.Slice(sns, func(i, j int) bool { return sns[i].Name < sns[j].Name })
+
+	fmt.Fprintf(&buf, "\n")
+	for _, sn := range sns {
+		fmt.Fprintf(&buf, "\t%s\n", sn)
+	}
+
+	return buf.String()
 }
 
 // Capacity reports total storage capacity (bytes) across all namespaces.
