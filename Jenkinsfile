@@ -135,6 +135,44 @@ void rpm_test_post(String stage_name, String node) {
     job_status_update()
 }
 
+/**
+ * Update env.pragmas with default commit pragmas if not set.
+ */
+Map update_default_commit_pragmas() {
+    print("env.pragmas before modification:")
+    print(env.pragmas)
+    Map env_pragmas = [:]
+    if (env.pragmas) {
+        env_pragmas = "${env.pragmas}"[1..-2].split(', ').collectEntries { entry ->
+            String[] pair = entry.split('= ')
+            [(pair.first()): pair.last()]
+        }
+    }
+    String default_pragmas_str = sh(script: 'ci/gen_commit_pragmas.py --target origin/' + target_branch,
+                                    returnStdout: true).trim()
+    print("pragmas from gen_commit_pragmas.py:")
+    print(default_pragmas_str)
+    default_pragmas_str.split('\n').each { line ->
+        String key, value
+        try {
+            (key, value) = line.split(':', 2)
+            if (key.contains(' ')) {
+                return
+            }
+            key = key.toLowerCase()
+            if (! env_pragmas.containsKey(key)) {
+                env_pragmas[key] = value
+            }
+        /* groovylint-disable-next-line CatchArrayIndexOutOfBoundsException */
+        } catch (ArrayIndexOutOfBoundsException ignored) {
+            // ignore and move on to the next line
+        }
+    }
+    env.pragmas = env_pragmas as String
+    print("env.pragmas after modification:")
+    print(env.pragmas)
+}
+
 pipeline {
     agent { label 'lightweight' }
 
@@ -328,6 +366,7 @@ pipeline {
                 stage('Get Commit Message') {
                     steps {
                         pragmasToEnv()
+                        update_default_commit_pragmas()
                     }
                 }
                 stage('Determine Release Branch') {
